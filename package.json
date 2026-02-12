@@ -1,0 +1,10 @@
+{
+  "name": "awesome-code-snippets-pro-max",
+  "version": "2026.02.12",
+  "description": "Add code snippets and header/footer scripts without the upsell bullshit.",
+  "author": "eD Thomas",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "plugin-zip": "rm -f awesome-code-snippets-pro-max.zip && cd .. && zip -r awesome-code-snippets-pro-max/awesome-code-snippets-pro-max.zip awesome-code-snippets-pro-max -x '*.git*' -x 'awesome-code-snippets-pro-max/node_modules/*' -x 'awesome-code-snippets-pro-max/package.json' -x 'awesome-code-snippets-pro-max/package-lock.json' -x '*.DS_Store' -x '*.zip' -x 'awesome-code-snippets-pro-max/.claude/*'"
+  }
+}

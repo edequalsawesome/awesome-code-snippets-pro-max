@@ -1,0 +1,91 @@
+/**
+ * Awesome Code Snippets Pro Max - Admin Styles
+ *
+ * Minimal styling to complement WordPress admin UI
+ */
+
+/* Logo area placeholder */
+.acspm-plugin-logo {
+	margin: 20px 0;
+	min-height: 60px;
+}
+
+.acspm-plugin-logo svg,
+.acspm-plugin-logo img {
+	max-height: 60px;
+	width: auto;
+}
+
+/* Status indicators */
+.acspm-status-active {
+	color: #00a32a;
+	font-weight: 600;
+}
+
+.acspm-status-inactive {
+	color: #b32d2e;
+}
+
+.acspm-status-toggle {
+	text-decoration: none;
+}
+
+.acspm-status-toggle:hover .acspm-status-active,
+.acspm-status-toggle:hover .acspm-status-inactive {
+	text-decoration: underline;
+}
+
+/* Table column widths */
+.column-type {
+	width: 100px;
+}
+
+.column-location {
+	width: 180px;
+}
+
+.column-priority {
+	width: 80px;
+}
+
+.column-status {
+	width: 100px;
+}
+
+.column-actions {
+	width: 150px;
+}
+
+/* Footer tagline */
+.acspm-footer-tagline {
+	margin-top: 30px;
+	padding-top: 20px;
+	border-top: 1px solid #c3c4c7;
+	color: #646970;
+	font-size: 12px;
+	font-style: italic;
+}
+
+/* CodeMirror container fixes */
+.CodeMirror {
+	border: 1px solid #8c8f94;
+	height: auto;
+	min-height: 200px;
+}
+
+/* Card adjustments */
+.card h2 {
+	margin-top: 0;
+	padding-top: 0;
+}
+
+/* Delete button styling */
+.button-link-delete {
+	color: #b32d2e !important;
+	border-color: #b32d2e !important;
+}
+
+.button-link-delete:hover {
+	background: #b32d2e !important;
+	color: #fff !important;
+}
