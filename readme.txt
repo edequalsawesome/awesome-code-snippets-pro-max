@@ -76,6 +76,22 @@ Yes, but only for active snippets and only on the frontend. Be careful with what
 
 Because if Apple can over-engineer their product names, so can we.
 
+= I added a bad snippet and now my site is broken! =
+
+Don't panic. We've got you covered with **Safe Mode**.
+
+**Option 1: URL Parameter (recommended)**
+While logged in as an admin, add `?acspm-safe-mode=1` to any URL on your site:
+`https://yoursite.com/wp-admin/?acspm-safe-mode=1`
+
+This temporarily disables all snippets and header/footer code so you can access the admin and fix or deactivate the problematic snippet.
+
+**Option 2: wp-config.php Constant**
+If you can't log in at all, add this line to your wp-config.php (before "stop editing"):
+`define( 'ACSPM_SAFE_MODE', true );`
+
+Once you've fixed the issue, remove the line from wp-config.php.
+
 == Screenshots ==
 
 1. Code Snippets list view
@@ -88,6 +104,7 @@ Because if Apple can over-engineer their product names, so can we.
 * Initial release
 * Code Snippets Manager with PHP, JS, and CSS support
 * Header & Footer script injection
+* Safe Mode for recovery when snippets break your site
 * Full feature set included because that's how software should work
 
 == Upgrade Notice ==

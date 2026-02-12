@@ -98,6 +98,11 @@ class ACSPM_Header_Footer {
 	 * Output header code in wp_head
 	 */
 	public function output_header_code() {
+		// Safe mode blocks all code output
+		if ( function_exists( 'acspm_is_safe_mode' ) && acspm_is_safe_mode() ) {
+			return;
+		}
+
 		$code = $this->get_header_code();
 
 		if ( ! empty( $code ) ) {
@@ -111,6 +116,11 @@ class ACSPM_Header_Footer {
 	 * Output footer code in wp_footer
 	 */
 	public function output_footer_code() {
+		// Safe mode blocks all code output
+		if ( function_exists( 'acspm_is_safe_mode' ) && acspm_is_safe_mode() ) {
+			return;
+		}
+
 		$code = $this->get_footer_code();
 
 		if ( ! empty( $code ) ) {

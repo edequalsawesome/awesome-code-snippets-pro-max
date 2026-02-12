@@ -444,6 +444,11 @@ class ACSPM_Snippets {
 	 * @param array $snippet Snippet data.
 	 */
 	private function execute_snippet( $snippet ) {
+		// Safe mode blocks all snippet execution
+		if ( function_exists( 'acspm_is_safe_mode' ) && acspm_is_safe_mode() ) {
+			return;
+		}
+
 		if ( empty( $snippet['code'] ) ) {
 			return;
 		}
