@@ -30,6 +30,20 @@ class ACSPM_Snippets {
 	const POST_TYPE = 'acspm_snippet';
 
 	/**
+	 * Transient key for cached snippets
+	 *
+	 * @var string
+	 */
+	const CACHE_KEY = 'acspm_snippets_all';
+
+	/**
+	 * In-memory cache for "everywhere" snippets within a single request
+	 *
+	 * @var array|null
+	 */
+	private $everywhere_snippets_cache = null;
+
+	/**
 	 * Get singleton instance
 	 *
 	 * @return ACSPM_Snippets
@@ -93,7 +107,10 @@ class ACSPM_Snippets {
 	}
 
 	/**
-	 * Get all snippets
+	 * Get all active snippets from cache or database
+	 *
+	 * Uses a transient to avoid repeated DB queries on every page load.
+	 * Primes the post meta cache to eliminate N+1 queries.
 	 *
 	 * @param array $args Optional query arguments.
 	 * @return array Array of snippet objects.
@@ -108,14 +125,70 @@ class ACSPM_Snippets {
 		);
 
 		$query_args = wp_parse_args( $args, $defaults );
-		$posts      = get_posts( $query_args );
-		$snippets   = array();
 
+		// For the standard "get all published" query, use the transient cache
+		$use_cache = (
+			isset( $query_args['post_status'] ) &&
+			'publish' === $query_args['post_status'] &&
+			! empty( $query_args['meta_query'] )
+		);
+
+		if ( $use_cache ) {
+			$cache_key = self::CACHE_KEY . '_' . md5( wp_json_encode( $query_args ) );
+			$cached    = get_transient( $cache_key );
+
+			if ( false !== $cached ) {
+				return $cached;
+			}
+		}
+
+		$posts = get_posts( $query_args );
+
+		// Prime the meta cache for all posts in one query (eliminates N+1)
+		if ( ! empty( $posts ) ) {
+			$post_ids = wp_list_pluck( $posts, 'ID' );
+			update_meta_cache( 'post', $post_ids );
+		}
+
+		$snippets = array();
 		foreach ( $posts as $post ) {
 			$snippets[] = $this->format_snippet( $post );
 		}
 
+		// Sort by priority
+		usort(
+			$snippets,
+			function ( $a, $b ) {
+				return $a['priority'] - $b['priority'];
+			}
+		);
+
+		if ( $use_cache ) {
+			set_transient( $cache_key, $snippets, HOUR_IN_SECONDS );
+		}
+
 		return $snippets;
+	}
+
+	/**
+	 * Clear the snippet cache
+	 *
+	 * Called whenever snippets are created, updated, deleted, or toggled.
+	 */
+	public function clear_cache() {
+		global $wpdb;
+
+		// Delete all acspm transients
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+				'_transient_acspm_snippets_%',
+				'_transient_timeout_acspm_snippets_%'
+			)
+		);
+
+		// Clear in-memory cache
+		$this->everywhere_snippets_cache = null;
 	}
 
 	/**
@@ -137,10 +210,15 @@ class ACSPM_Snippets {
 	/**
 	 * Format a snippet post into a usable array
 	 *
+	 * Meta values are already primed by update_meta_cache() in get_snippets(),
+	 * so individual get_post_meta() calls hit the object cache, not the DB.
+	 *
 	 * @param WP_Post $post The snippet post object.
 	 * @return array Formatted snippet data.
 	 */
 	private function format_snippet( $post ) {
+		$priority_raw = get_post_meta( $post->ID, '_acspm_priority', true );
+
 		return array(
 			'id'          => $post->ID,
 			'name'        => $post->post_title,
@@ -148,7 +226,7 @@ class ACSPM_Snippets {
 			'code_type'   => get_post_meta( $post->ID, '_acspm_code_type', true ) ?: 'php',
 			'location'    => get_post_meta( $post->ID, '_acspm_location', true ) ?: 'wp_head',
 			'custom_hook' => get_post_meta( $post->ID, '_acspm_custom_hook', true ),
-			'priority'    => (int) get_post_meta( $post->ID, '_acspm_priority', true ) ?: 10,
+			'priority'    => '' !== $priority_raw ? max( 1, min( 999, (int) $priority_raw ) ) : 10,
 			'active'      => 'publish' === $post->post_status,
 		);
 	}
@@ -160,11 +238,12 @@ class ACSPM_Snippets {
 	 * @return int|WP_Error Snippet ID on success, WP_Error on failure.
 	 */
 	public function create_snippet( $data ) {
+		$priority  = isset( $data['priority'] ) ? max( 1, min( 999, (int) $data['priority'] ) ) : 10;
 		$post_data = array(
 			'post_type'   => self::POST_TYPE,
 			'post_title'  => sanitize_text_field( $data['name'] ),
 			'post_status' => ! empty( $data['active'] ) ? 'publish' : 'draft',
-			'menu_order'  => isset( $data['priority'] ) ? (int) $data['priority'] : 10,
+			'menu_order'  => $priority,
 		);
 
 		$snippet_id = wp_insert_post( $post_data, true );
@@ -174,6 +253,7 @@ class ACSPM_Snippets {
 		}
 
 		$this->update_snippet_meta( $snippet_id, $data );
+		$this->clear_cache();
 
 		return $snippet_id;
 	}
@@ -186,11 +266,12 @@ class ACSPM_Snippets {
 	 * @return int|WP_Error Snippet ID on success, WP_Error on failure.
 	 */
 	public function update_snippet( $snippet_id, $data ) {
+		$priority  = isset( $data['priority'] ) ? max( 1, min( 999, (int) $data['priority'] ) ) : 10;
 		$post_data = array(
 			'ID'          => $snippet_id,
 			'post_title'  => sanitize_text_field( $data['name'] ),
 			'post_status' => ! empty( $data['active'] ) ? 'publish' : 'draft',
-			'menu_order'  => isset( $data['priority'] ) ? (int) $data['priority'] : 10,
+			'menu_order'  => $priority,
 		);
 
 		$result = wp_update_post( $post_data, true );
@@ -200,6 +281,7 @@ class ACSPM_Snippets {
 		}
 
 		$this->update_snippet_meta( $snippet_id, $data );
+		$this->clear_cache();
 
 		return $snippet_id;
 	}
@@ -228,11 +310,17 @@ class ACSPM_Snippets {
 		}
 
 		if ( isset( $data['custom_hook'] ) ) {
-			update_post_meta( $snippet_id, '_acspm_custom_hook', sanitize_text_field( $data['custom_hook'] ) );
+			$hook_name = sanitize_text_field( $data['custom_hook'] );
+			// Validate hook name: only allow valid PHP function/hook characters
+			if ( ! empty( $hook_name ) && ! preg_match( '/^[a-zA-Z_][a-zA-Z0-9_\/\-]*$/', $hook_name ) ) {
+				$hook_name = '';
+			}
+			update_post_meta( $snippet_id, '_acspm_custom_hook', $hook_name );
 		}
 
 		if ( isset( $data['priority'] ) ) {
-			update_post_meta( $snippet_id, '_acspm_priority', (int) $data['priority'] );
+			$priority = max( 1, min( 999, (int) $data['priority'] ) );
+			update_post_meta( $snippet_id, '_acspm_priority', $priority );
 		}
 	}
 
@@ -249,7 +337,13 @@ class ACSPM_Snippets {
 			return false;
 		}
 
-		return (bool) wp_delete_post( $snippet_id, true );
+		$result = (bool) wp_delete_post( $snippet_id, true );
+
+		if ( $result ) {
+			$this->clear_cache();
+		}
+
+		return $result;
 	}
 
 	/**
@@ -273,7 +367,35 @@ class ACSPM_Snippets {
 			)
 		);
 
+		$this->clear_cache();
+
 		return 'publish' === $new_status;
+	}
+
+	/**
+	 * Get cached "everywhere" snippets for the current request
+	 *
+	 * Eliminates duplicate queries for "everywhere" snippets that are
+	 * fetched multiple times per page load (head, footer, init).
+	 *
+	 * @return array Everywhere snippets.
+	 */
+	private function get_everywhere_snippets() {
+		if ( null === $this->everywhere_snippets_cache ) {
+			$this->everywhere_snippets_cache = $this->get_snippets(
+				array(
+					'post_status' => 'publish',
+					'meta_query'  => array(
+						array(
+							'key'   => '_acspm_location',
+							'value' => 'everywhere',
+						),
+					),
+				)
+			);
+		}
+
+		return $this->everywhere_snippets_cache;
 	}
 
 	/**
@@ -283,7 +405,7 @@ class ACSPM_Snippets {
 	 * @return array Active snippets for the location.
 	 */
 	private function get_active_snippets_for_location( $location ) {
-		$snippets = $this->get_snippets(
+		return $this->get_snippets(
 			array(
 				'post_status' => 'publish',
 				'meta_query'  => array(
@@ -294,16 +416,6 @@ class ACSPM_Snippets {
 				),
 			)
 		);
-
-		// Sort by priority
-		usort(
-			$snippets,
-			function ( $a, $b ) {
-				return $a['priority'] - $b['priority'];
-			}
-		);
-
-		return $snippets;
 	}
 
 	/**
@@ -311,7 +423,6 @@ class ACSPM_Snippets {
 	 */
 	public function execute_head_snippets() {
 		$this->execute_snippets_for_location( 'wp_head' );
-		// Also execute "everywhere" JS/CSS snippets on frontend head
 		$this->execute_everywhere_output_snippets( 'head' );
 	}
 
@@ -320,7 +431,6 @@ class ACSPM_Snippets {
 	 */
 	public function execute_footer_snippets() {
 		$this->execute_snippets_for_location( 'wp_footer' );
-		// Also execute "everywhere" JS/CSS snippets on frontend footer
 		$this->execute_everywhere_output_snippets( 'footer' );
 	}
 
@@ -341,20 +451,12 @@ class ACSPM_Snippets {
 	/**
 	 * Execute "everywhere" JS/CSS snippets for head or footer
 	 *
+	 * Uses in-memory cache to avoid re-querying for each hook.
+	 *
 	 * @param string $position Either 'head' or 'footer'.
 	 */
 	private function execute_everywhere_output_snippets( $position ) {
-		$snippets = $this->get_snippets(
-			array(
-				'post_status' => 'publish',
-				'meta_query'  => array(
-					array(
-						'key'   => '_acspm_location',
-						'value' => 'everywhere',
-					),
-				),
-			)
-		);
+		$snippets = $this->get_everywhere_snippets();
 
 		foreach ( $snippets as $snippet ) {
 			// Only JS and CSS get output in head/footer
@@ -375,17 +477,7 @@ class ACSPM_Snippets {
 	 * Execute "everywhere" PHP snippets on init
 	 */
 	public function execute_everywhere_snippets() {
-		$snippets = $this->get_snippets(
-			array(
-				'post_status' => 'publish',
-				'meta_query'  => array(
-					array(
-						'key'   => '_acspm_location',
-						'value' => 'everywhere',
-					),
-				),
-			)
-		);
+		$snippets = $this->get_everywhere_snippets();
 
 		foreach ( $snippets as $snippet ) {
 			// Only PHP runs on init
@@ -441,6 +533,9 @@ class ACSPM_Snippets {
 	/**
 	 * Execute a single snippet
 	 *
+	 * JS and CSS are output as raw inline code. This is intentional — escaping
+	 * would break the code. Only administrators can create snippets.
+	 *
 	 * @param array $snippet Snippet data.
 	 */
 	private function execute_snippet( $snippet ) {
@@ -449,7 +544,7 @@ class ACSPM_Snippets {
 			return;
 		}
 
-		if ( empty( $snippet['code'] ) ) {
+		if ( empty( trim( $snippet['code'] ) ) ) {
 			return;
 		}
 
@@ -459,12 +554,12 @@ class ACSPM_Snippets {
 				break;
 
 			case 'js':
-				// Output JavaScript
+				// Output JavaScript (raw — only admins can create snippets)
 				echo '<script>' . "\n" . $snippet['code'] . "\n" . '</script>' . "\n";
 				break;
 
 			case 'css':
-				// Output CSS
+				// Output CSS (raw — only admins can create snippets)
 				echo '<style>' . "\n" . $snippet['code'] . "\n" . '</style>' . "\n";
 				break;
 		}
@@ -479,13 +574,11 @@ class ACSPM_Snippets {
 	 * @param array $snippet Snippet data.
 	 */
 	private function execute_php_snippet( $snippet ) {
-		// Create a unique temp file for this snippet
-		$temp_file = wp_tempnam( 'acspm_snippet_' . $snippet['id'] );
+		// Create a unique temp file with uniqid to prevent race conditions
+		$temp_file = wp_tempnam( 'acspm_' . $snippet['id'] . '_' . uniqid( '', true ) );
 
 		if ( ! $temp_file ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				echo '<!-- ACSPM Snippet Error (' . esc_html( $snippet['name'] ) . '): Could not create temp file -->';
-			}
+			$this->log_snippet_error( $snippet['name'], 'Could not create temp file' );
 			return;
 		}
 
@@ -498,9 +591,7 @@ class ACSPM_Snippets {
 
 		if ( false === $written ) {
 			wp_delete_file( $temp_file );
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				echo '<!-- ACSPM Snippet Error (' . esc_html( $snippet['name'] ) . '): Could not write temp file -->';
-			}
+			$this->log_snippet_error( $snippet['name'], 'Could not write temp file' );
 			return;
 		}
 
@@ -508,12 +599,29 @@ class ACSPM_Snippets {
 		try {
 			include $temp_file;
 		} catch ( Throwable $e ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				echo '<!-- ACSPM Snippet Error (' . esc_html( $snippet['name'] ) . '): ' . esc_html( $e->getMessage() ) . ' -->';
-			}
+			$this->log_snippet_error( $snippet['name'], $e->getMessage() );
 		}
 
 		// Clean up the temp file
 		wp_delete_file( $temp_file );
+	}
+
+	/**
+	 * Log a snippet error
+	 *
+	 * Always logs to error_log. Also outputs HTML comment when WP_DEBUG is on.
+	 *
+	 * @param string $snippet_name Snippet name.
+	 * @param string $message      Error message.
+	 */
+	private function log_snippet_error( $snippet_name, $message ) {
+		// Always log to PHP error log
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		error_log( 'ACSPM Snippet Error (' . $snippet_name . '): ' . $message );
+
+		// Also output HTML comment when debugging
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			echo '<!-- ACSPM Snippet Error (' . esc_html( $snippet_name ) . '): ' . esc_html( $message ) . ' -->';
+		}
 	}
 }

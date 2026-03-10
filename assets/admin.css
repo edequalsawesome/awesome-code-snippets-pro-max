@@ -16,14 +16,14 @@
 	width: auto;
 }
 
-/* Status indicators */
+/* Status indicators — colors meet WCAG AA contrast (4.5:1+) on white */
 .acspm-status-active {
-	color: #00a32a;
+	color: #008a20;
 	font-weight: 600;
 }
 
 .acspm-status-inactive {
-	color: #b32d2e;
+	color: #8b0000;
 }
 
 .acspm-status-toggle {
@@ -31,8 +31,22 @@
 }
 
 .acspm-status-toggle:hover .acspm-status-active,
-.acspm-status-toggle:hover .acspm-status-inactive {
+.acspm-status-toggle:hover .acspm-status-inactive,
+.acspm-status-toggle:focus .acspm-status-active,
+.acspm-status-toggle:focus .acspm-status-inactive {
 	text-decoration: underline;
+}
+
+/* Focus indicators for keyboard navigation */
+.acspm-status-toggle:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+.button-link-delete:focus {
+	outline: 2px solid #d63638;
+	outline-offset: 2px;
 }
 
 /* Table column widths */
@@ -56,12 +70,18 @@
 	width: 150px;
 }
 
+/* Required field indicator */
+.required {
+	color: #d63638;
+	font-weight: 600;
+}
+
 /* Footer tagline */
 .acspm-footer-tagline {
 	margin-top: 30px;
 	padding-top: 20px;
 	border-top: 1px solid #c3c4c7;
-	color: #646970;
+	color: #50575e;
 	font-size: 12px;
 	font-style: italic;
 }
@@ -81,11 +101,11 @@
 
 /* Delete button styling */
 .button-link-delete {
-	color: #b32d2e !important;
-	border-color: #b32d2e !important;
+	color: #8b0000 !important;
+	border-color: #8b0000 !important;
 }
 
 .button-link-delete:hover {
-	background: #b32d2e !important;
+	background: #8b0000 !important;
 	color: #fff !important;
 }

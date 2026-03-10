@@ -15,3 +15,4 @@ Thumbs.db
 
 # Local logs and session docs
 *-session-*.md
+malware_found.log

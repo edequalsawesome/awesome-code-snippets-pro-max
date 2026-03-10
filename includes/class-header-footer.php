@@ -81,17 +81,17 @@ class ACSPM_Header_Footer {
 	 * @return bool True on success, false on failure.
 	 */
 	public function save_header_code( $code ) {
-		return update_option( self::OPTION_HEADER, wp_unslash( $code ) );
+		return update_option( self::OPTION_HEADER, $code );
 	}
 
 	/**
 	 * Save footer code
 	 *
-	 * @param string $code Footer code to save.
+	 * @param string $code Footer code to save (caller should wp_unslash first).
 	 * @return bool True on success, false on failure.
 	 */
 	public function save_footer_code( $code ) {
-		return update_option( self::OPTION_FOOTER, wp_unslash( $code ) );
+		return update_option( self::OPTION_FOOTER, $code );
 	}
 
 	/**

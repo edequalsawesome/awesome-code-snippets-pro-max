@@ -118,7 +118,10 @@ class ACSPM_Admin_Pages {
 
 		// Handle snippet toggle via GET
 		if ( isset( $_GET['action'] ) && 'toggle' === $_GET['action'] && isset( $_GET['snippet_id'] ) ) {
-			if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ?? '' ) ), 'acspm_toggle_' . $_GET['snippet_id'] ) ) {
+			$snippet_id = (int) $_GET['snippet_id'];
+			$nonce      = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+
+			if ( ! wp_verify_nonce( $nonce, 'acspm_toggle_' . $snippet_id ) ) {
 				wp_die( esc_html__( 'Security check failed.', 'awesome-code-snippets-pro-max' ) );
 			}
 
@@ -127,7 +130,7 @@ class ACSPM_Admin_Pages {
 			}
 
 			$snippets = ACSPM_Snippets::get_instance();
-			$snippets->toggle_snippet( (int) $_GET['snippet_id'] );
+			$snippets->toggle_snippet( $snippet_id );
 
 			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&toggled=1' ) );
 			exit;
@@ -135,7 +138,10 @@ class ACSPM_Admin_Pages {
 
 		// Handle snippet delete via GET
 		if ( isset( $_GET['action'] ) && 'delete' === $_GET['action'] && isset( $_GET['snippet_id'] ) ) {
-			if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ?? '' ) ), 'acspm_delete_' . $_GET['snippet_id'] ) ) {
+			$snippet_id = (int) $_GET['snippet_id'];
+			$nonce      = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+
+			if ( ! wp_verify_nonce( $nonce, 'acspm_delete_' . $snippet_id ) ) {
 				wp_die( esc_html__( 'Security check failed.', 'awesome-code-snippets-pro-max' ) );
 			}
 
@@ -144,7 +150,7 @@ class ACSPM_Admin_Pages {
 			}
 
 			$snippets = ACSPM_Snippets::get_instance();
-			$snippets->delete_snippet( (int) $_GET['snippet_id'] );
+			$snippets->delete_snippet( $snippet_id );
 
 			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&deleted=1' ) );
 			exit;
@@ -163,7 +169,7 @@ class ACSPM_Admin_Pages {
 			'code_type'   => isset( $_POST['snippet_code_type'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_code_type'] ) ) : 'php',
 			'location'    => isset( $_POST['snippet_location'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_location'] ) ) : 'wp_head',
 			'custom_hook' => isset( $_POST['snippet_custom_hook'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_custom_hook'] ) ) : '',
-			'priority'    => isset( $_POST['snippet_priority'] ) ? (int) $_POST['snippet_priority'] : 10,
+			'priority'    => isset( $_POST['snippet_priority'] ) ? max( 1, min( 999, (int) $_POST['snippet_priority'] ) ) : 10,
 			'active'      => ! empty( $_POST['snippet_active'] ),
 		);
 
@@ -187,8 +193,8 @@ class ACSPM_Admin_Pages {
 	private function handle_header_footer_save() {
 		$header_footer = ACSPM_Header_Footer::get_instance();
 
-		$header_code = isset( $_POST['header_code'] ) ? $_POST['header_code'] : '';
-		$footer_code = isset( $_POST['footer_code'] ) ? $_POST['footer_code'] : '';
+		$header_code = isset( $_POST['header_code'] ) ? wp_unslash( $_POST['header_code'] ) : '';
+		$footer_code = isset( $_POST['footer_code'] ) ? wp_unslash( $_POST['footer_code'] ) : '';
 
 		$header_footer->save_header_code( $header_code );
 		$header_footer->save_footer_code( $footer_code );
@@ -228,7 +234,7 @@ class ACSPM_Admin_Pages {
 		$editing_snippet  = null;
 
 		// Check if editing a snippet
-		if ( isset( $_GET['edit'] ) ) {
+		if ( isset( $_GET['edit'] ) && (int) $_GET['edit'] > 0 ) {
 			$editing_snippet = $snippets_manager->get_snippet( (int) $_GET['edit'] );
 		}
 
@@ -298,10 +304,10 @@ class ACSPM_Admin_Pages {
 				<table class="form-table">
 					<tr>
 						<th scope="row">
-							<label for="snippet_name"><?php esc_html_e( 'Name', 'awesome-code-snippets-pro-max' ); ?></label>
+							<label for="snippet_name"><?php esc_html_e( 'Name', 'awesome-code-snippets-pro-max' ); ?> <span class="required">*</span></label>
 						</th>
 						<td>
-							<input type="text" name="snippet_name" id="snippet_name" class="regular-text" required
+							<input type="text" name="snippet_name" id="snippet_name" class="regular-text" required aria-required="true"
 								value="<?php echo $is_edit ? esc_attr( $snippet['name'] ) : ''; ?>">
 						</td>
 					</tr>
@@ -513,7 +519,9 @@ class ACSPM_Admin_Pages {
 									'acspm_toggle_' . $snippet['id']
 								);
 								?>
-								<a href="<?php echo esc_url( $toggle_url ); ?>" class="acspm-status-toggle">
+								<a href="<?php echo esc_url( $toggle_url ); ?>" class="acspm-status-toggle"
+									role="button"
+									aria-label="<?php echo $snippet['active'] ? esc_attr__( 'Deactivate snippet', 'awesome-code-snippets-pro-max' ) : esc_attr__( 'Activate snippet', 'awesome-code-snippets-pro-max' ); ?>">
 									<?php if ( $snippet['active'] ) : ?>
 										<span class="acspm-status-active"><?php esc_html_e( 'Active', 'awesome-code-snippets-pro-max' ); ?></span>
 									<?php else : ?>
