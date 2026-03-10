@@ -3,7 +3,7 @@
  * Plugin Name: Awesome Code Snippets Pro Max
  * Plugin URI: https://edequalsaweso.me/development
  * Description: Add code snippets and header/footer scripts without wondering when we'll ask you to upgrade. That's it. All features included. No upsells. No paywalls. No shenanigans.
- * Version: 2026.02.12
+ * Version: 2026.03.10
  * Author: eD Thomas
  * Author URI: https://edequalsaweso.me
  * License: GPL v3 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'ACSPM_VERSION', '2026.02.12' );
+define( 'ACSPM_VERSION', '2026.03.10' );
 define( 'ACSPM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ACSPM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ACSPM_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
