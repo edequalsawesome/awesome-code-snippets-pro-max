@@ -74,10 +74,13 @@ function acspm_init() {
 		ACSPM_Admin_Pages::get_instance();
 	}
 
-	// Show admin notice when safe mode is active
-	if ( acspm_is_safe_mode() && is_admin() ) {
-		add_action( 'admin_notices', 'acspm_safe_mode_notice' );
-	}
+	// Show admin notice when safe mode is active (deferred to admin_init
+	// so current_user_can() is reliable — it may not be at plugins_loaded)
+	add_action( 'admin_init', function () {
+		if ( acspm_is_safe_mode() ) {
+			add_action( 'admin_notices', 'acspm_safe_mode_notice' );
+		}
+	} );
 }
 add_action( 'plugins_loaded', 'acspm_init' );
 
@@ -87,7 +90,7 @@ add_action( 'plugins_loaded', 'acspm_init' );
 function acspm_safe_mode_notice() {
 	$dismiss_url = remove_query_arg( 'acspm-safe-mode' );
 	?>
-	<div class="notice notice-warning">
+	<div class="notice notice-warning" role="alert">
 		<p>
 			<strong>Awesome Code Snippets Pro Max - Safe Mode Active</strong><br>
 			All snippets and header/footer code are currently disabled.
@@ -104,6 +107,14 @@ function acspm_safe_mode_notice() {
 function acspm_activate() {
 	ACSPM_Snippets::get_instance()->register_post_type();
 	flush_rewrite_rules();
+
+	// Create header/footer options with autoload=false (only needed on frontend + one admin page)
+	if ( false === get_option( 'acspm_header_code' ) ) {
+		add_option( 'acspm_header_code', '', '', false );
+	}
+	if ( false === get_option( 'acspm_footer_code' ) ) {
+		add_option( 'acspm_footer_code', '', '', false );
+	}
 }
 register_activation_hook( __FILE__, 'acspm_activate' );
 

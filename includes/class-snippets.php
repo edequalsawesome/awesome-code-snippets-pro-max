@@ -30,18 +30,18 @@ class ACSPM_Snippets {
 	const POST_TYPE = 'acspm_snippet';
 
 	/**
-	 * Transient key for cached snippets
+	 * Transient key for cached active snippets
 	 *
 	 * @var string
 	 */
-	const CACHE_KEY = 'acspm_snippets_all';
+	const CACHE_KEY = 'acspm_active_snippets';
 
 	/**
-	 * In-memory cache for "everywhere" snippets within a single request
+	 * In-memory cache for active snippets within a single request
 	 *
 	 * @var array|null
 	 */
-	private $everywhere_snippets_cache = null;
+	private $active_snippets_cache = null;
 
 	/**
 	 * Get singleton instance
@@ -107,9 +107,39 @@ class ACSPM_Snippets {
 	}
 
 	/**
-	 * Get all active snippets from cache or database
+	 * Get all active (published) snippets from cache
 	 *
-	 * Uses a transient to avoid repeated DB queries on every page load.
+	 * Uses a single transient for all active snippets. Location filtering
+	 * happens in PHP — the dataset is small (typically <100 snippets) so
+	 * one query + filter is faster than multiple cached DB queries.
+	 *
+	 * @return array Array of active snippet objects.
+	 */
+	public function get_all_active_snippets() {
+		if ( null !== $this->active_snippets_cache ) {
+			return $this->active_snippets_cache;
+		}
+
+		$cached = get_transient( self::CACHE_KEY );
+		if ( false !== $cached ) {
+			$this->active_snippets_cache = $cached;
+			return $cached;
+		}
+
+		$snippets = $this->get_snippets();
+
+		set_transient( self::CACHE_KEY, $snippets, HOUR_IN_SECONDS );
+		$this->active_snippets_cache = $snippets;
+
+		return $snippets;
+	}
+
+	/**
+	 * Get snippets from database
+	 *
+	 * Direct database query with no caching layer. Used for the admin listing
+	 * (with post_status=any) and as the backing query for get_all_active_snippets().
+	 *
 	 * Primes the post meta cache to eliminate N+1 queries.
 	 *
 	 * @param array $args Optional query arguments.
@@ -121,28 +151,11 @@ class ACSPM_Snippets {
 			'posts_per_page' => -1,
 			'orderby'        => 'menu_order',
 			'order'          => 'ASC',
-			'post_status'    => 'any',
+			'post_status'    => 'publish',
 		);
 
 		$query_args = wp_parse_args( $args, $defaults );
-
-		// For the standard "get all published" query, use the transient cache
-		$use_cache = (
-			isset( $query_args['post_status'] ) &&
-			'publish' === $query_args['post_status'] &&
-			! empty( $query_args['meta_query'] )
-		);
-
-		if ( $use_cache ) {
-			$cache_key = self::CACHE_KEY . '_' . md5( wp_json_encode( $query_args ) );
-			$cached    = get_transient( $cache_key );
-
-			if ( false !== $cached ) {
-				return $cached;
-			}
-		}
-
-		$posts = get_posts( $query_args );
+		$posts      = get_posts( $query_args );
 
 		// Prime the meta cache for all posts in one query (eliminates N+1)
 		if ( ! empty( $posts ) ) {
@@ -155,18 +168,6 @@ class ACSPM_Snippets {
 			$snippets[] = $this->format_snippet( $post );
 		}
 
-		// Sort by priority
-		usort(
-			$snippets,
-			function ( $a, $b ) {
-				return $a['priority'] - $b['priority'];
-			}
-		);
-
-		if ( $use_cache ) {
-			set_transient( $cache_key, $snippets, HOUR_IN_SECONDS );
-		}
-
 		return $snippets;
 	}
 
@@ -176,19 +177,9 @@ class ACSPM_Snippets {
 	 * Called whenever snippets are created, updated, deleted, or toggled.
 	 */
 	public function clear_cache() {
-		global $wpdb;
-
-		// Delete all acspm transients
-		$wpdb->query(
-			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
-				'_transient_acspm_snippets_%',
-				'_transient_timeout_acspm_snippets_%'
-			)
-		);
-
-		// Clear in-memory cache
-		$this->everywhere_snippets_cache = null;
+		delete_transient( self::CACHE_KEY );
+		$this->active_snippets_cache = null;
+		$this->clean_php_cache();
 	}
 
 	/**
@@ -290,11 +281,11 @@ class ACSPM_Snippets {
 	 * Update snippet meta fields
 	 *
 	 * @param int   $snippet_id Snippet ID.
-	 * @param array $data       Snippet data.
+	 * @param array $data       Snippet data (already wp_unslash'd by caller).
 	 */
 	private function update_snippet_meta( $snippet_id, $data ) {
 		if ( isset( $data['code'] ) ) {
-			update_post_meta( $snippet_id, '_acspm_code', wp_unslash( $data['code'] ) );
+			update_post_meta( $snippet_id, '_acspm_code', $data['code'] );
 		}
 
 		if ( isset( $data['code_type'] ) ) {
@@ -373,48 +364,19 @@ class ACSPM_Snippets {
 	}
 
 	/**
-	 * Get cached "everywhere" snippets for the current request
+	 * Get active snippets filtered by location
 	 *
-	 * Eliminates duplicate queries for "everywhere" snippets that are
-	 * fetched multiple times per page load (head, footer, init).
+	 * Filters from the single cached set of all active snippets.
 	 *
-	 * @return array Everywhere snippets.
-	 */
-	private function get_everywhere_snippets() {
-		if ( null === $this->everywhere_snippets_cache ) {
-			$this->everywhere_snippets_cache = $this->get_snippets(
-				array(
-					'post_status' => 'publish',
-					'meta_query'  => array(
-						array(
-							'key'   => '_acspm_location',
-							'value' => 'everywhere',
-						),
-					),
-				)
-			);
-		}
-
-		return $this->everywhere_snippets_cache;
-	}
-
-	/**
-	 * Get active snippets for a specific location
-	 *
-	 * @param string $location Location (wp_head, wp_footer, custom).
+	 * @param string $location Location (wp_head, wp_footer, everywhere, custom).
 	 * @return array Active snippets for the location.
 	 */
 	private function get_active_snippets_for_location( $location ) {
-		return $this->get_snippets(
-			array(
-				'post_status' => 'publish',
-				'meta_query'  => array(
-					array(
-						'key'   => '_acspm_location',
-						'value' => $location,
-					),
-				),
-			)
+		return array_filter(
+			$this->get_all_active_snippets(),
+			function ( $snippet ) use ( $location ) {
+				return $snippet['location'] === $location;
+			}
 		);
 	}
 
@@ -451,12 +413,10 @@ class ACSPM_Snippets {
 	/**
 	 * Execute "everywhere" JS/CSS snippets for head or footer
 	 *
-	 * Uses in-memory cache to avoid re-querying for each hook.
-	 *
 	 * @param string $position Either 'head' or 'footer'.
 	 */
 	private function execute_everywhere_output_snippets( $position ) {
-		$snippets = $this->get_everywhere_snippets();
+		$snippets = $this->get_active_snippets_for_location( 'everywhere' );
 
 		foreach ( $snippets as $snippet ) {
 			// Only JS and CSS get output in head/footer
@@ -477,7 +437,7 @@ class ACSPM_Snippets {
 	 * Execute "everywhere" PHP snippets on init
 	 */
 	public function execute_everywhere_snippets() {
-		$snippets = $this->get_everywhere_snippets();
+		$snippets = $this->get_active_snippets_for_location( 'everywhere' );
 
 		foreach ( $snippets as $snippet ) {
 			// Only PHP runs on init
@@ -492,17 +452,7 @@ class ACSPM_Snippets {
 	 * Execute snippets for custom hooks
 	 */
 	public function execute_custom_hook_snippets() {
-		$snippets = $this->get_snippets(
-			array(
-				'post_status' => 'publish',
-				'meta_query'  => array(
-					array(
-						'key'   => '_acspm_location',
-						'value' => 'custom',
-					),
-				),
-			)
-		);
+		$snippets = $this->get_active_snippets_for_location( 'custom' );
 
 		foreach ( $snippets as $snippet ) {
 			if ( ! empty( $snippet['custom_hook'] ) ) {
@@ -544,7 +494,7 @@ class ACSPM_Snippets {
 			return;
 		}
 
-		if ( empty( trim( $snippet['code'] ) ) ) {
+		if ( '' === trim( $snippet['code'] ) ) {
 			return;
 		}
 
@@ -554,13 +504,15 @@ class ACSPM_Snippets {
 				break;
 
 			case 'js':
-				// Output JavaScript (raw — only admins can create snippets)
-				echo '<script>' . "\n" . $snippet['code'] . "\n" . '</script>' . "\n";
+				// Escape closing script tag to prevent premature HTML tag closure
+				$safe_code = str_replace( '</script>', '<\/script>', $snippet['code'] );
+				echo '<script>' . "\n" . $safe_code . "\n" . '</script>' . "\n";
 				break;
 
 			case 'css':
-				// Output CSS (raw — only admins can create snippets)
-				echo '<style>' . "\n" . $snippet['code'] . "\n" . '</style>' . "\n";
+				// Escape closing style tag to prevent premature HTML tag closure
+				$safe_code = str_replace( '</style>', '<\/style>', $snippet['code'] );
+				echo '<style>' . "\n" . $safe_code . "\n" . '</style>' . "\n";
 				break;
 		}
 	}
@@ -568,48 +520,110 @@ class ACSPM_Snippets {
 	/**
 	 * Execute a PHP snippet safely
 	 *
-	 * Uses a temp file instead of eval() so that <?php and ?> tags work
-	 * properly inside callbacks (e.g., for outputting HTML within hooks).
+	 * Uses cached temp files so each snippet is written to disk only when
+	 * its code changes, not on every page load. Files are stored in
+	 * wp-content/uploads/acspm-cache/ with restrictive permissions.
 	 *
 	 * @param array $snippet Snippet data.
 	 */
 	private function execute_php_snippet( $snippet ) {
-		// Create a unique temp file with uniqid to prevent race conditions
-		$temp_file = wp_tempnam( 'acspm_' . $snippet['id'] . '_' . uniqid( '', true ) );
+		// Strip leading <?php tag if user included one (common mistake)
+		$snippet_code = preg_replace( '/^\s*<\?php\b/', '', $snippet['code'] );
 
-		if ( ! $temp_file ) {
-			$this->log_snippet_error( $snippet['name'], 'Could not create temp file' );
+		if ( '' === trim( $snippet_code ) ) {
 			return;
 		}
 
-		// Write the PHP code to the temp file
-		// Wrap in <?php tag so the file is valid PHP
-		$code = '<?php' . "\n" . $snippet['code'];
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-		$written = file_put_contents( $temp_file, $code );
-
-		if ( false === $written ) {
-			wp_delete_file( $temp_file );
-			$this->log_snippet_error( $snippet['name'], 'Could not write temp file' );
+		$cache_dir = $this->ensure_php_cache_dir();
+		if ( ! $cache_dir ) {
+			$this->log_snippet_error( $snippet['name'], 'Could not create PHP cache directory' );
 			return;
 		}
 
-		// Execute the temp file
+		$code_hash  = md5( $snippet_code );
+		$cache_file = $cache_dir . '/snippet-' . $snippet['id'] . '-' . $code_hash . '.php';
+
+		if ( ! file_exists( $cache_file ) ) {
+			// Clean up old cache files for this snippet ID
+			$old_files = glob( $cache_dir . '/snippet-' . $snippet['id'] . '-*.php' );
+			if ( $old_files ) {
+				foreach ( $old_files as $old_file ) {
+					wp_delete_file( $old_file );
+				}
+			}
+
+			$code = '<?php' . "\n" . $snippet_code;
+
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			$written = file_put_contents( $cache_file, $code, LOCK_EX );
+
+			if ( false === $written ) {
+				$this->log_snippet_error( $snippet['name'], 'Could not write cache file' );
+				return;
+			}
+
+			chmod( $cache_file, 0600 );
+		}
+
 		try {
-			include $temp_file;
+			include $cache_file;
 		} catch ( Throwable $e ) {
 			$this->log_snippet_error( $snippet['name'], $e->getMessage() );
 		}
+	}
 
-		// Clean up the temp file
-		wp_delete_file( $temp_file );
+	/**
+	 * Get the PHP snippet cache directory path
+	 *
+	 * @return string Cache directory path.
+	 */
+	private function get_php_cache_dir() {
+		$upload_dir = wp_upload_dir();
+		return $upload_dir['basedir'] . '/acspm-cache';
+	}
+
+	/**
+	 * Ensure the PHP cache directory exists with proper protection
+	 *
+	 * @return string|false Cache directory path, or false on failure.
+	 */
+	private function ensure_php_cache_dir() {
+		$cache_dir = $this->get_php_cache_dir();
+
+		if ( ! is_dir( $cache_dir ) ) {
+			wp_mkdir_p( $cache_dir );
+
+			// Prevent direct web access to cached PHP files
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			file_put_contents( $cache_dir . '/.htaccess', "Deny from all\n" );
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			file_put_contents( $cache_dir . '/index.php', "<?php\n// Silence is golden.\n" );
+		}
+
+		return is_dir( $cache_dir ) ? $cache_dir : false;
+	}
+
+	/**
+	 * Clean all cached PHP snippet files
+	 */
+	private function clean_php_cache() {
+		$cache_dir = $this->get_php_cache_dir();
+
+		if ( is_dir( $cache_dir ) ) {
+			$files = glob( $cache_dir . '/snippet-*.php' );
+			if ( $files ) {
+				foreach ( $files as $file ) {
+					wp_delete_file( $file );
+				}
+			}
+		}
 	}
 
 	/**
 	 * Log a snippet error
 	 *
-	 * Always logs to error_log. Also outputs HTML comment when WP_DEBUG is on.
+	 * Always logs to error_log. Also outputs HTML comment for logged-in admins
+	 * when WP_DEBUG is on.
 	 *
 	 * @param string $snippet_name Snippet name.
 	 * @param string $message      Error message.
@@ -619,8 +633,8 @@ class ACSPM_Snippets {
 		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 		error_log( 'ACSPM Snippet Error (' . $snippet_name . '): ' . $message );
 
-		// Also output HTML comment when debugging
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		// Only output debug info to logged-in admins
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
 			echo '<!-- ACSPM Snippet Error (' . esc_html( $snippet_name ) . '): ' . esc_html( $message ) . ' -->';
 		}
 	}
