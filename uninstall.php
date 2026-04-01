@@ -32,6 +32,7 @@ do {
 // Delete options.
 delete_option( 'acspm_header_code' );
 delete_option( 'acspm_footer_code' );
+delete_option( 'acspm_db_version' );
 
 // Delete known transients via API first (handles external object caches like Redis/Memcached).
 delete_transient( 'acspm_active_snippets' );

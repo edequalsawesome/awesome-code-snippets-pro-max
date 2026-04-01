@@ -326,7 +326,7 @@ class ACSPM_Admin_Pages {
 				<table class="form-table">
 					<tr>
 						<th scope="row">
-							<label for="snippet_name"><?php esc_html_e( 'Name', 'awesome-code-snippets-pro-max' ); ?> <span class="required">*</span></label>
+							<label for="snippet_name"><?php esc_html_e( 'Name', 'awesome-code-snippets-pro-max' ); ?> <span class="required" aria-hidden="true">*</span></label>
 						</th>
 						<td>
 							<input type="text" name="snippet_name" id="snippet_name" class="regular-text" required aria-required="true"

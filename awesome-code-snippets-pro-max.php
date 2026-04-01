@@ -132,12 +132,12 @@ function acspm_maybe_upgrade() {
 
 		$wpdb->update(
 			$wpdb->options,
-			array( 'autoload' => 'no' ),
+			array( 'autoload' => 'off' ),
 			array( 'option_name' => 'acspm_header_code' )
 		);
 		$wpdb->update(
 			$wpdb->options,
-			array( 'autoload' => 'no' ),
+			array( 'autoload' => 'off' ),
 			array( 'option_name' => 'acspm_footer_code' )
 		);
 
