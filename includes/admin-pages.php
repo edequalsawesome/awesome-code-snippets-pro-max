@@ -105,14 +105,17 @@ class ACSPM_Admin_Pages {
 			true
 		);
 
-		wp_localize_script(
+		wp_add_inline_script(
 			'acspm-admin',
-			'acspmAdmin',
-			array(
-				'i18n' => array(
-					'editorEscapeHint' => __( 'Press Escape then Tab to leave the editor.', 'awesome-code-snippets-pro-max' ),
+			'var acspmAdmin = ' . wp_json_encode(
+				array(
+					'i18n' => array(
+						'editorEscapeHint' => __( 'Press Escape then Tab to leave the editor.', 'awesome-code-snippets-pro-max' ),
+					),
 				),
-			)
+				JSON_HEX_TAG
+			) . ';',
+			'before'
 		);
 	}
 
@@ -185,10 +188,17 @@ class ACSPM_Admin_Pages {
 	private function handle_snippet_action() {
 		$snippets = ACSPM_Snippets::get_instance();
 
+		$code_type = isset( $_POST['snippet_code_type'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_code_type'] ) ) : 'php';
+
+		// PHP snippets require unfiltered_html capability (stripped from admins on multisite by default)
+		if ( 'php' === $code_type && ! current_user_can( 'unfiltered_html' ) ) {
+			wp_die( esc_html__( 'You do not have permission to create PHP snippets.', 'awesome-code-snippets-pro-max' ) );
+		}
+
 		$data = array(
 			'name'        => isset( $_POST['snippet_name'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_name'] ) ) : '',
 			'code'        => isset( $_POST['snippet_code'] ) ? wp_unslash( $_POST['snippet_code'] ) : '',
-			'code_type'   => isset( $_POST['snippet_code_type'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_code_type'] ) ) : 'php',
+			'code_type'   => $code_type,
 			'location'    => isset( $_POST['snippet_location'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_location'] ) ) : 'wp_head',
 			'custom_hook' => isset( $_POST['snippet_custom_hook'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_custom_hook'] ) ) : '',
 			'priority'    => isset( $_POST['snippet_priority'] ) ? max( 1, min( 999, (int) $_POST['snippet_priority'] ) ) : 10,

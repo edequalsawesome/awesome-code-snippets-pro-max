@@ -179,7 +179,9 @@ class ACSPM_Snippets {
 	public function clear_cache() {
 		delete_transient( self::CACHE_KEY );
 		$this->active_snippets_cache = null;
-		$this->clean_php_cache();
+		// PHP cache files are content-addressed (hash in filename), so unchanged
+		// snippets naturally reuse existing files. Per-snippet cleanup in
+		// execute_php_snippet() handles stale files when code changes.
 	}
 
 	/**
@@ -540,7 +542,7 @@ class ACSPM_Snippets {
 			return;
 		}
 
-		$code_hash  = md5( $snippet_code );
+		$code_hash  = wp_hash( $snippet_code );
 		$cache_file = $cache_dir . '/snippet-' . $snippet['id'] . '-' . $code_hash . '.php';
 
 		if ( ! file_exists( $cache_file ) ) {
@@ -607,6 +609,8 @@ class ACSPM_Snippets {
 			// Prevent direct web access to cached PHP files
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			file_put_contents( $cache_dir . '/.htaccess', "Deny from all\n" );
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			file_put_contents( $cache_dir . '/web.config', "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<configuration><system.webServer><authorization><deny users=\"*\" /></authorization></system.webServer></configuration>\n" );
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			file_put_contents( $cache_dir . '/index.php', "<?php\nif ( ! defined( 'ABSPATH' ) ) { exit; }\n// Silence is golden.\n" );
 		}
