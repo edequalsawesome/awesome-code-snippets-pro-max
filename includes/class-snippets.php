@@ -504,14 +504,14 @@ class ACSPM_Snippets {
 				break;
 
 			case 'js':
-				// Escape closing script tag to prevent premature HTML tag closure
-				$safe_code = str_replace( '</script>', '<\/script>', $snippet['code'] );
+				// Escape closing script tag to prevent premature HTML tag closure (case-insensitive)
+				$safe_code = preg_replace( '~</script\b~i', '<\/script', $snippet['code'] );
 				echo '<script>' . "\n" . $safe_code . "\n" . '</script>' . "\n";
 				break;
 
 			case 'css':
-				// Escape closing style tag to prevent premature HTML tag closure
-				$safe_code = str_replace( '</style>', '<\/style>', $snippet['code'] );
+				// Escape closing style tag to prevent premature HTML tag closure (case-insensitive)
+				$safe_code = preg_replace( '~</style\b~i', '<\/style', $snippet['code'] );
 				echo '<style>' . "\n" . $safe_code . "\n" . '</style>' . "\n";
 				break;
 		}
@@ -544,25 +544,36 @@ class ACSPM_Snippets {
 		$cache_file = $cache_dir . '/snippet-' . $snippet['id'] . '-' . $code_hash . '.php';
 
 		if ( ! file_exists( $cache_file ) ) {
-			// Clean up old cache files for this snippet ID
-			$old_files = glob( $cache_dir . '/snippet-' . $snippet['id'] . '-*.php' );
-			if ( $old_files ) {
-				foreach ( $old_files as $old_file ) {
-					wp_delete_file( $old_file );
-				}
-			}
-
-			$code = '<?php' . "\n" . $snippet_code;
+			$code = "<?php\nif ( ! defined( 'ABSPATH' ) ) { exit; }\n" . $snippet_code;
+			$tmp_file = $cache_file . '.tmp';
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			$written = file_put_contents( $cache_file, $code, LOCK_EX );
+			$written = file_put_contents( $tmp_file, $code, LOCK_EX );
 
 			if ( false === $written ) {
 				$this->log_snippet_error( $snippet['name'], 'Could not write cache file' );
 				return;
 			}
 
-			chmod( $cache_file, 0600 );
+			chmod( $tmp_file, 0600 );
+
+			// Atomic rename — no window where include sees a missing file
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+			if ( ! rename( $tmp_file, $cache_file ) ) {
+				wp_delete_file( $tmp_file );
+				$this->log_snippet_error( $snippet['name'], 'Could not rename cache file' );
+				return;
+			}
+
+			// Clean up old cache files for this snippet ID (exclude current)
+			$old_files = glob( $cache_dir . '/snippet-' . $snippet['id'] . '-*.php' );
+			if ( $old_files ) {
+				foreach ( $old_files as $old_file ) {
+					if ( $old_file !== $cache_file ) {
+						wp_delete_file( $old_file );
+					}
+				}
+			}
 		}
 
 		try {
@@ -597,7 +608,7 @@ class ACSPM_Snippets {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			file_put_contents( $cache_dir . '/.htaccess', "Deny from all\n" );
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			file_put_contents( $cache_dir . '/index.php', "<?php\n// Silence is golden.\n" );
+			file_put_contents( $cache_dir . '/index.php', "<?php\nif ( ! defined( 'ABSPATH' ) ) { exit; }\n// Silence is golden.\n" );
 		}
 
 		return is_dir( $cache_dir ) ? $cache_dir : false;

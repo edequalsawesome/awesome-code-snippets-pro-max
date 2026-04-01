@@ -119,6 +119,34 @@ function acspm_activate() {
 register_activation_hook( __FILE__, 'acspm_activate' );
 
 /**
+ * Upgrade path for existing installations.
+ *
+ * The activation hook only runs on fresh installs, not updates. This migration
+ * fixes autoload for header/footer options that were added before we set autoload=false.
+ */
+function acspm_maybe_upgrade() {
+	$db_version = get_option( 'acspm_db_version', '0' );
+
+	if ( version_compare( $db_version, '1.1', '<' ) ) {
+		global $wpdb;
+
+		$wpdb->update(
+			$wpdb->options,
+			array( 'autoload' => 'no' ),
+			array( 'option_name' => 'acspm_header_code' )
+		);
+		$wpdb->update(
+			$wpdb->options,
+			array( 'autoload' => 'no' ),
+			array( 'option_name' => 'acspm_footer_code' )
+		);
+
+		update_option( 'acspm_db_version', '1.1' );
+	}
+}
+add_action( 'plugins_loaded', 'acspm_maybe_upgrade' );
+
+/**
  * Deactivation hook - flush rewrite rules
  */
 function acspm_deactivate() {

@@ -33,7 +33,10 @@ do {
 delete_option( 'acspm_header_code' );
 delete_option( 'acspm_footer_code' );
 
-// Delete all cached transients (wildcard cleanup matching clear_cache pattern).
+// Delete known transients via API first (handles external object caches like Redis/Memcached).
+delete_transient( 'acspm_active_snippets' );
+
+// Delete all cached transients from the DB (wildcard cleanup for any remaining DB-backed rows).
 global $wpdb;
 $wpdb->query(
 	$wpdb->prepare(
@@ -48,9 +51,15 @@ $upload_dir = wp_upload_dir();
 $cache_dir  = $upload_dir['basedir'] . '/acspm-cache';
 
 if ( is_dir( $cache_dir ) ) {
-	$files = glob( $cache_dir . '/*' );
+	$files = array_merge(
+		glob( $cache_dir . '/*' ) ?: array(),
+		glob( $cache_dir . '/.*' ) ?: array()
+	);
 	if ( $files ) {
 		foreach ( $files as $file ) {
+			if ( in_array( basename( $file ), array( '.', '..' ), true ) ) {
+				continue;
+			}
 			if ( is_file( $file ) ) {
 				wp_delete_file( $file );
 			}

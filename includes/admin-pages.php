@@ -87,17 +87,20 @@ class ACSPM_Admin_Pages {
 
 		// Enqueue code editor
 		$settings = wp_enqueue_code_editor( array( 'type' => 'text/html' ) );
+		$script_deps = array( 'jquery' );
 
 		if ( false !== $settings ) {
 			wp_enqueue_script( 'wp-theme-plugin-editor' );
 			wp_enqueue_style( 'wp-codemirror' );
+			$script_deps[] = 'wp-theme-plugin-editor';
+			$script_deps[] = 'underscore';
 		}
 
 		// Enqueue admin JS with proper dependencies
 		wp_enqueue_script(
 			'acspm-admin',
 			ACSPM_PLUGIN_URL . 'assets/admin.js',
-			array( 'jquery', 'wp-theme-plugin-editor', 'underscore' ),
+			$script_deps,
 			ACSPM_VERSION,
 			true
 		);
