@@ -16,9 +16,9 @@
 	width: auto;
 }
 
-/* Status indicators — colors meet WCAG AA contrast (4.5:1+) on white */
+/* Status indicators — colors meet WCAG AA contrast (4.5:1+) on both white and striped row #f6f7f7 */
 .acspm-status-active {
-	color: #008a20;
+	color: #007a1b;
 	font-weight: 600;
 }
 
@@ -99,13 +99,37 @@
 	padding-top: 0;
 }
 
-/* Delete button styling */
-.button-link-delete {
-	color: #8b0000 !important;
-	border-color: #8b0000 !important;
+/* Full-width cards */
+.acspm-card-wide {
+	max-width: 100%;
 }
 
-.button-link-delete:hover {
-	background: #8b0000 !important;
-	color: #fff !important;
+.acspm-card-wide + .acspm-card-wide {
+	margin-top: 20px;
+}
+
+/* Custom hook row — hidden by default, shown via JS */
+.acspm-custom-hook-row {
+	display: none;
+}
+
+.acspm-custom-hook-row.is-visible {
+	display: table-row;
+}
+
+/* Editor keyboard escape hint */
+.acspm-editor-hint {
+	margin-top: 8px;
+	font-style: italic;
+}
+
+/* Delete button styling — scoped to plugin pages to avoid !important */
+.tools_page_acspm-snippets .button-link-delete {
+	color: #8b0000;
+	border-color: #8b0000;
+}
+
+.tools_page_acspm-snippets .button-link-delete:hover {
+	background: #8b0000;
+	color: #fff;
 }

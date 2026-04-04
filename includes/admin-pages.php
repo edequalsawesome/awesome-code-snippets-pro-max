@@ -87,11 +87,36 @@ class ACSPM_Admin_Pages {
 
 		// Enqueue code editor
 		$settings = wp_enqueue_code_editor( array( 'type' => 'text/html' ) );
+		$script_deps = array( 'jquery' );
 
 		if ( false !== $settings ) {
 			wp_enqueue_script( 'wp-theme-plugin-editor' );
 			wp_enqueue_style( 'wp-codemirror' );
+			$script_deps[] = 'wp-theme-plugin-editor';
+			$script_deps[] = 'underscore';
 		}
+
+		// Enqueue admin JS with proper dependencies
+		wp_enqueue_script(
+			'acspm-admin',
+			ACSPM_PLUGIN_URL . 'assets/admin.js',
+			$script_deps,
+			ACSPM_VERSION,
+			true
+		);
+
+		wp_add_inline_script(
+			'acspm-admin',
+			'var acspmAdmin = ' . wp_json_encode(
+				array(
+					'i18n' => array(
+						'editorEscapeHint' => __( 'Press Escape then Tab to leave the editor.', 'awesome-code-snippets-pro-max' ),
+					),
+				),
+				JSON_HEX_TAG
+			) . ';',
+			'before'
+		);
 	}
 
 	/**
@@ -111,6 +136,12 @@ class ACSPM_Admin_Pages {
 		if ( isset( $_POST['acspm_save_header_footer'] ) && check_admin_referer( 'acspm_header_footer', 'acspm_nonce' ) ) {
 			if ( ! current_user_can( 'manage_options' ) ) {
 				wp_die( esc_html__( 'You do not have permission to do this.', 'awesome-code-snippets-pro-max' ) );
+			}
+
+			// Header/footer code is output verbatim, so require unfiltered_html
+			// (stripped from non-super-admins on multisite by default)
+			if ( ! current_user_can( 'unfiltered_html' ) ) {
+				wp_die( esc_html__( 'You do not have permission to save header/footer code.', 'awesome-code-snippets-pro-max' ) );
 			}
 
 			$this->handle_header_footer_save();
@@ -163,10 +194,18 @@ class ACSPM_Admin_Pages {
 	private function handle_snippet_action() {
 		$snippets = ACSPM_Snippets::get_instance();
 
+		$code_type = isset( $_POST['snippet_code_type'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_code_type'] ) ) : 'php';
+
+		// Snippet bodies are rendered verbatim, so require unfiltered_html for all types
+		// (stripped from non-super-admins on multisite by default)
+		if ( ! current_user_can( 'unfiltered_html' ) ) {
+			wp_die( esc_html__( 'You do not have permission to create code snippets.', 'awesome-code-snippets-pro-max' ) );
+		}
+
 		$data = array(
 			'name'        => isset( $_POST['snippet_name'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_name'] ) ) : '',
-			'code'        => isset( $_POST['snippet_code'] ) ? $_POST['snippet_code'] : '',
-			'code_type'   => isset( $_POST['snippet_code_type'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_code_type'] ) ) : 'php',
+			'code'        => isset( $_POST['snippet_code'] ) ? wp_unslash( $_POST['snippet_code'] ) : '',
+			'code_type'   => $code_type,
 			'location'    => isset( $_POST['snippet_location'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_location'] ) ) : 'wp_head',
 			'custom_hook' => isset( $_POST['snippet_custom_hook'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_custom_hook'] ) ) : '',
 			'priority'    => isset( $_POST['snippet_priority'] ) ? max( 1, min( 999, (int) $_POST['snippet_priority'] ) ) : 10,
@@ -230,7 +269,7 @@ class ACSPM_Admin_Pages {
 	 */
 	public function render_snippets_page() {
 		$snippets_manager = ACSPM_Snippets::get_instance();
-		$snippets         = $snippets_manager->get_snippets();
+		$snippets         = $snippets_manager->get_snippets( array( 'post_status' => 'any' ) );
 		$editing_snippet  = null;
 
 		// Check if editing a snippet
@@ -256,18 +295,18 @@ class ACSPM_Admin_Pages {
 			<hr class="wp-header-end">
 
 			<?php
-			// Show admin notices
+			// Show admin notices with role="alert" for screen reader announcement
 			if ( isset( $_GET['created'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Snippet created successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
+				echo '<div class="notice notice-success is-dismissible" role="alert"><p>' . esc_html__( 'Snippet created successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
 			}
 			if ( isset( $_GET['updated'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Snippet updated successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
+				echo '<div class="notice notice-success is-dismissible" role="alert"><p>' . esc_html__( 'Snippet updated successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
 			}
 			if ( isset( $_GET['deleted'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Snippet deleted successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
+				echo '<div class="notice notice-success is-dismissible" role="alert"><p>' . esc_html__( 'Snippet deleted successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
 			}
 			if ( isset( $_GET['toggled'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Snippet status updated.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
+				echo '<div class="notice notice-success is-dismissible" role="alert"><p>' . esc_html__( 'Snippet status updated.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
 			}
 			?>
 
@@ -290,7 +329,7 @@ class ACSPM_Admin_Pages {
 	private function render_snippet_form( $snippet = null ) {
 		$is_edit = ! empty( $snippet );
 		?>
-		<div class="card" style="max-width: 100%;">
+		<div class="card acspm-card-wide">
 			<h2><?php echo $is_edit ? esc_html__( 'Edit Snippet', 'awesome-code-snippets-pro-max' ) : esc_html__( 'Add New Snippet', 'awesome-code-snippets-pro-max' ); ?></h2>
 
 			<form method="post" action="">
@@ -304,7 +343,7 @@ class ACSPM_Admin_Pages {
 				<table class="form-table">
 					<tr>
 						<th scope="row">
-							<label for="snippet_name"><?php esc_html_e( 'Name', 'awesome-code-snippets-pro-max' ); ?> <span class="required">*</span></label>
+							<label for="snippet_name"><?php esc_html_e( 'Name', 'awesome-code-snippets-pro-max' ); ?> <span class="required" aria-hidden="true">*</span></label>
 						</th>
 						<td>
 							<input type="text" name="snippet_name" id="snippet_name" class="regular-text" required aria-required="true"
@@ -354,7 +393,7 @@ class ACSPM_Admin_Pages {
 						</td>
 					</tr>
 
-					<tr class="acspm-custom-hook-row" style="<?php echo ( $is_edit && 'custom' === $snippet['location'] ) ? '' : 'display: none;'; ?>">
+					<tr class="acspm-custom-hook-row <?php echo ( $is_edit && 'custom' === $snippet['location'] ) ? 'is-visible' : ''; ?>">
 						<th scope="row">
 							<label for="snippet_custom_hook"><?php esc_html_e( 'Custom Hook Name', 'awesome-code-snippets-pro-max' ); ?></label>
 						</th>
@@ -398,55 +437,6 @@ class ACSPM_Admin_Pages {
 				</p>
 			</form>
 		</div>
-
-		<script>
-		jQuery(document).ready(function($) {
-			// Initialize CodeMirror
-			if (typeof wp !== 'undefined' && wp.codeEditor) {
-				var editorSettings = wp.codeEditor.defaultSettings ? _.clone(wp.codeEditor.defaultSettings) : {};
-				editorSettings.codemirror = _.extend({}, editorSettings.codemirror, {
-					mode: 'php',
-					lineNumbers: true,
-					lineWrapping: true,
-					indentUnit: 4,
-					tabSize: 4,
-					indentWithTabs: true
-				});
-
-				var editor = wp.codeEditor.initialize($('#snippet_code'), editorSettings);
-
-				// Update CodeMirror mode when code type changes
-				$('#snippet_code_type').on('change', function() {
-					var mode = 'php';
-					switch($(this).val()) {
-						case 'js':
-							mode = 'javascript';
-							break;
-						case 'css':
-							mode = 'css';
-							break;
-						case 'php':
-						default:
-							mode = 'php';
-							break;
-					}
-					editor.codemirror.setOption('mode', mode);
-				});
-
-				// Trigger initial mode set
-				$('#snippet_code_type').trigger('change');
-			}
-
-			// Show/hide custom hook field
-			$('#snippet_location').on('change', function() {
-				if ($(this).val() === 'custom') {
-					$('.acspm-custom-hook-row').show();
-				} else {
-					$('.acspm-custom-hook-row').hide();
-				}
-			});
-		});
-		</script>
 		<?php
 	}
 
@@ -521,7 +511,9 @@ class ACSPM_Admin_Pages {
 								?>
 								<a href="<?php echo esc_url( $toggle_url ); ?>" class="acspm-status-toggle"
 									role="button"
-									aria-label="<?php echo $snippet['active'] ? esc_attr__( 'Deactivate snippet', 'awesome-code-snippets-pro-max' ) : esc_attr__( 'Activate snippet', 'awesome-code-snippets-pro-max' ); ?>">
+									aria-label="<?php echo $snippet['active']
+										? esc_attr( sprintf( __( 'Deactivate snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) )
+										: esc_attr( sprintf( __( 'Activate snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) ); ?>">
 									<?php if ( $snippet['active'] ) : ?>
 										<span class="acspm-status-active"><?php esc_html_e( 'Active', 'awesome-code-snippets-pro-max' ); ?></span>
 									<?php else : ?>
@@ -530,7 +522,8 @@ class ACSPM_Admin_Pages {
 								</a>
 							</td>
 							<td class="column-actions">
-								<a href="<?php echo esc_url( admin_url( 'tools.php?page=acspm-snippets&edit=' . $snippet['id'] ) ); ?>" class="button button-small">
+								<a href="<?php echo esc_url( admin_url( 'tools.php?page=acspm-snippets&edit=' . $snippet['id'] ) ); ?>" class="button button-small"
+									aria-label="<?php echo esc_attr( sprintf( __( 'Edit snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) ); ?>">
 									<?php esc_html_e( 'Edit', 'awesome-code-snippets-pro-max' ); ?>
 								</a>
 								<?php
@@ -539,7 +532,9 @@ class ACSPM_Admin_Pages {
 									'acspm_delete_' . $snippet['id']
 								);
 								?>
-								<a href="<?php echo esc_url( $delete_url ); ?>" class="button button-small button-link-delete" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this snippet?', 'awesome-code-snippets-pro-max' ) ); ?>');">
+								<a href="<?php echo esc_url( $delete_url ); ?>" class="button button-small button-link-delete"
+									aria-label="<?php echo esc_attr( sprintf( __( 'Delete snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) ); ?>"
+									onclick="return confirm('<?php echo esc_js( sprintf( __( 'Are you sure you want to delete the snippet "%s"?', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) ); ?>');">
 									<?php esc_html_e( 'Delete', 'awesome-code-snippets-pro-max' ); ?>
 								</a>
 							</td>
@@ -569,7 +564,7 @@ class ACSPM_Admin_Pages {
 
 			<?php
 			if ( isset( $_GET['saved'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
+				echo '<div class="notice notice-success is-dismissible" role="alert"><p>' . esc_html__( 'Settings saved successfully.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
 			}
 			?>
 
@@ -577,20 +572,20 @@ class ACSPM_Admin_Pages {
 				<?php wp_nonce_field( 'acspm_header_footer', 'acspm_nonce' ); ?>
 				<input type="hidden" name="acspm_save_header_footer" value="1">
 
-				<div class="card" style="max-width: 100%;">
-					<h2><?php esc_html_e( 'Code after <head>', 'awesome-code-snippets-pro-max' ); ?></h2>
+				<div class="card acspm-card-wide">
+					<h2 id="acspm-header-label"><?php esc_html_e( 'Code after <head>', 'awesome-code-snippets-pro-max' ); ?></h2>
 					<p class="description">
 						<?php esc_html_e( 'This code will be inserted right after the opening <head> tag. Great for analytics, meta tags, fonts, etc.', 'awesome-code-snippets-pro-max' ); ?>
 					</p>
-					<textarea name="header_code" id="acspm_header_code" rows="10" class="large-text code"><?php echo esc_textarea( $header_code ); ?></textarea>
+					<textarea name="header_code" id="acspm_header_code" rows="10" class="large-text code" aria-labelledby="acspm-header-label"><?php echo esc_textarea( $header_code ); ?></textarea>
 				</div>
 
-				<div class="card" style="max-width: 100%; margin-top: 20px;">
-					<h2><?php esc_html_e( 'Code before </body>', 'awesome-code-snippets-pro-max' ); ?></h2>
+				<div class="card acspm-card-wide">
+					<h2 id="acspm-footer-label"><?php esc_html_e( 'Code before </body>', 'awesome-code-snippets-pro-max' ); ?></h2>
 					<p class="description">
 						<?php esc_html_e( 'This code will be inserted right before the closing </body> tag. Good for tracking scripts, chat widgets, etc.', 'awesome-code-snippets-pro-max' ); ?>
 					</p>
-					<textarea name="footer_code" id="acspm_footer_code" rows="10" class="large-text code"><?php echo esc_textarea( $footer_code ); ?></textarea>
+					<textarea name="footer_code" id="acspm_footer_code" rows="10" class="large-text code" aria-labelledby="acspm-footer-label"><?php echo esc_textarea( $footer_code ); ?></textarea>
 				</div>
 
 				<p class="submit">
@@ -600,26 +595,6 @@ class ACSPM_Admin_Pages {
 
 			<?php $this->render_footer(); ?>
 		</div>
-
-		<script>
-		jQuery(document).ready(function($) {
-			// Initialize CodeMirror for both textareas
-			if (typeof wp !== 'undefined' && wp.codeEditor) {
-				var editorSettings = wp.codeEditor.defaultSettings ? _.clone(wp.codeEditor.defaultSettings) : {};
-				editorSettings.codemirror = _.extend({}, editorSettings.codemirror, {
-					mode: 'htmlmixed',
-					lineNumbers: true,
-					lineWrapping: true,
-					indentUnit: 4,
-					tabSize: 4,
-					indentWithTabs: true
-				});
-
-				wp.codeEditor.initialize($('#acspm_header_code'), editorSettings);
-				wp.codeEditor.initialize($('#acspm_footer_code'), editorSettings);
-			}
-		});
-		</script>
 		<?php
 	}
 }

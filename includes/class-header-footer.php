@@ -81,7 +81,7 @@ class ACSPM_Header_Footer {
 	 * @return bool True on success, false on failure.
 	 */
 	public function save_header_code( $code ) {
-		return update_option( self::OPTION_HEADER, $code );
+		return update_option( self::OPTION_HEADER, $code, false );
 	}
 
 	/**
@@ -91,7 +91,7 @@ class ACSPM_Header_Footer {
 	 * @return bool True on success, false on failure.
 	 */
 	public function save_footer_code( $code ) {
-		return update_option( self::OPTION_FOOTER, $code );
+		return update_option( self::OPTION_FOOTER, $code, false );
 	}
 
 	/**
@@ -106,9 +106,7 @@ class ACSPM_Header_Footer {
 		$code = $this->get_header_code();
 
 		if ( ! empty( $code ) ) {
-			echo "\n<!-- Awesome Code Snippets Pro Max - Header -->\n";
 			echo $code;
-			echo "\n<!-- /Awesome Code Snippets Pro Max - Header -->\n";
 		}
 	}
 
@@ -124,9 +122,7 @@ class ACSPM_Header_Footer {
 		$code = $this->get_footer_code();
 
 		if ( ! empty( $code ) ) {
-			echo "\n<!-- Awesome Code Snippets Pro Max - Footer -->\n";
 			echo $code;
-			echo "\n<!-- /Awesome Code Snippets Pro Max - Footer -->\n";
 		}
 	}
 }
