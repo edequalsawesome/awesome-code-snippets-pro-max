@@ -4,7 +4,7 @@ Tags: code snippets, header footer, custom code, analytics, scripts
 Requires at least: 5.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 2026.02.12
+Stable tag: 2026.04.04
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -99,6 +99,14 @@ Once you've fixed the issue, remove the line from wp-config.php.
 3. Header & Footer settings page
 
 == Changelog ==
+
+= 2026.04.04 =
+* Security: All code paths (snippets, header/footer) now require `unfiltered_html` capability, closing a multisite privilege escalation gap
+* Security: PHP snippet cache moved from `uploads/` to `wp-content/cache/` to prevent web-accessible executable files on Nginx
+* Fix: `clear_cache()` now removes stale PHP cache files when snippets are deleted, deactivated, or change type
+* Performance: Consolidated snippet cache with single transient, PHP snippets use content-addressed cached files
+* Accessibility: `role="alert"` on admin notices, descriptive `aria-label` on all actions, CodeMirror keyboard trap fix
+* Admin JS extracted to properly enqueued `assets/admin.js`
 
 = 2026.02.12 =
 * Initial release
