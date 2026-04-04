@@ -179,9 +179,7 @@ class ACSPM_Snippets {
 	public function clear_cache() {
 		delete_transient( self::CACHE_KEY );
 		$this->active_snippets_cache = null;
-		// PHP cache files are content-addressed (hash in filename), so unchanged
-		// snippets naturally reuse existing files. Per-snippet cleanup in
-		// execute_php_snippet() handles stale files when code changes.
+		$this->clean_php_cache();
 	}
 
 	/**

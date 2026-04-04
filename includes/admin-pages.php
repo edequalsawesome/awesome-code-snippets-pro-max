@@ -190,9 +190,10 @@ class ACSPM_Admin_Pages {
 
 		$code_type = isset( $_POST['snippet_code_type'] ) ? sanitize_text_field( wp_unslash( $_POST['snippet_code_type'] ) ) : 'php';
 
-		// PHP snippets require unfiltered_html capability (stripped from admins on multisite by default)
-		if ( 'php' === $code_type && ! current_user_can( 'unfiltered_html' ) ) {
-			wp_die( esc_html__( 'You do not have permission to create PHP snippets.', 'awesome-code-snippets-pro-max' ) );
+		// Snippet bodies are rendered verbatim, so require unfiltered_html for all types
+		// (stripped from non-super-admins on multisite by default)
+		if ( ! current_user_can( 'unfiltered_html' ) ) {
+			wp_die( esc_html__( 'You do not have permission to create code snippets.', 'awesome-code-snippets-pro-max' ) );
 		}
 
 		$data = array(
