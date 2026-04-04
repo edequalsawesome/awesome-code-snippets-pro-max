@@ -143,6 +143,27 @@ function acspm_maybe_upgrade() {
 
 		update_option( 'acspm_db_version', '1.1' );
 	}
+
+	if ( version_compare( $db_version, '1.2', '<' ) ) {
+		// Move PHP cache from uploads/ (web-accessible) to wp-content/cache/ (not web-accessible).
+		$upload_dir = wp_upload_dir();
+		$old_cache  = $upload_dir['basedir'] . '/acspm-cache';
+
+		if ( is_dir( $old_cache ) ) {
+			$old_files = array_merge(
+				glob( $old_cache . '/*' ) ?: array(),
+				glob( $old_cache . '/.*' ) ?: array()
+			);
+			foreach ( $old_files as $file ) {
+				if ( ! in_array( basename( $file ), array( '.', '..' ), true ) && is_file( $file ) ) {
+					wp_delete_file( $file );
+				}
+			}
+			rmdir( $old_cache );
+		}
+
+		update_option( 'acspm_db_version', '1.2' );
+	}
 }
 add_action( 'plugins_loaded', 'acspm_maybe_upgrade' );
 

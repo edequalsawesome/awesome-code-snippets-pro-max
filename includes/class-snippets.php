@@ -522,7 +522,7 @@ class ACSPM_Snippets {
 	 *
 	 * Uses cached temp files so each snippet is written to disk only when
 	 * its code changes, not on every page load. Files are stored in
-	 * wp-content/uploads/acspm-cache/ with restrictive permissions.
+	 * wp-content/cache/acspm/ — outside uploads/ to avoid web exposure on Nginx.
 	 *
 	 * @param array $snippet Snippet data.
 	 */
@@ -589,8 +589,7 @@ class ACSPM_Snippets {
 	 * @return string Cache directory path.
 	 */
 	private function get_php_cache_dir() {
-		$upload_dir = wp_upload_dir();
-		return $upload_dir['basedir'] . '/acspm-cache';
+		return WP_CONTENT_DIR . '/cache/acspm';
 	}
 
 	/**

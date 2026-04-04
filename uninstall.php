@@ -47,24 +47,29 @@ $wpdb->query(
 	)
 );
 
-// Clean up PHP snippet cache directory.
+// Clean up PHP snippet cache directory (current and legacy locations).
+$cache_dirs = array(
+	WP_CONTENT_DIR . '/cache/acspm',
+);
 $upload_dir = wp_upload_dir();
-$cache_dir  = $upload_dir['basedir'] . '/acspm-cache';
+$cache_dirs[] = $upload_dir['basedir'] . '/acspm-cache';
 
-if ( is_dir( $cache_dir ) ) {
-	$files = array_merge(
-		glob( $cache_dir . '/*' ) ?: array(),
-		glob( $cache_dir . '/.*' ) ?: array()
-	);
-	if ( $files ) {
-		foreach ( $files as $file ) {
-			if ( in_array( basename( $file ), array( '.', '..' ), true ) ) {
-				continue;
-			}
-			if ( is_file( $file ) ) {
-				wp_delete_file( $file );
+foreach ( $cache_dirs as $cache_dir ) {
+	if ( is_dir( $cache_dir ) ) {
+		$files = array_merge(
+			glob( $cache_dir . '/*' ) ?: array(),
+			glob( $cache_dir . '/.*' ) ?: array()
+		);
+		if ( $files ) {
+			foreach ( $files as $file ) {
+				if ( in_array( basename( $file ), array( '.', '..' ), true ) ) {
+					continue;
+				}
+				if ( is_file( $file ) ) {
+					wp_delete_file( $file );
+				}
 			}
 		}
+		rmdir( $cache_dir );
 	}
-	rmdir( $cache_dir );
 }
