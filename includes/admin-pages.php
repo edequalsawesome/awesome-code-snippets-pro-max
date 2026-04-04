@@ -138,6 +138,12 @@ class ACSPM_Admin_Pages {
 				wp_die( esc_html__( 'You do not have permission to do this.', 'awesome-code-snippets-pro-max' ) );
 			}
 
+			// Header/footer code is output verbatim, so require unfiltered_html
+			// (stripped from non-super-admins on multisite by default)
+			if ( ! current_user_can( 'unfiltered_html' ) ) {
+				wp_die( esc_html__( 'You do not have permission to save header/footer code.', 'awesome-code-snippets-pro-max' ) );
+			}
+
 			$this->handle_header_footer_save();
 		}
 
