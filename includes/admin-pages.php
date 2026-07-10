@@ -161,9 +161,14 @@ class ACSPM_Admin_Pages {
 			}
 
 			$snippets = ACSPM_Snippets::get_instance();
-			$snippets->toggle_snippet( $snippet_id );
+			if ( $snippets->get_snippet( $snippet_id ) ) {
+				$snippets->toggle_snippet( $snippet_id );
+				$redirect_arg = 'toggled=1';
+			} else {
+				$redirect_arg = 'error=1';
+			}
 
-			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&toggled=1' ) );
+			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
 			exit;
 		}
 
@@ -180,10 +185,11 @@ class ACSPM_Admin_Pages {
 				wp_die( esc_html__( 'You do not have permission to do this.', 'awesome-code-snippets-pro-max' ) );
 			}
 
-			$snippets = ACSPM_Snippets::get_instance();
-			$snippets->delete_snippet( $snippet_id );
+			$snippets     = ACSPM_Snippets::get_instance();
+			$deleted      = $snippets->delete_snippet( $snippet_id );
+			$redirect_arg = $deleted ? 'deleted=1' : 'error=1';
 
-			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&deleted=1' ) );
+			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
 			exit;
 		}
 	}
@@ -214,12 +220,12 @@ class ACSPM_Admin_Pages {
 
 		if ( ! empty( $_POST['snippet_id'] ) ) {
 			// Update existing snippet
-			$snippets->update_snippet( (int) $_POST['snippet_id'], $data );
-			$redirect_arg = 'updated=1';
+			$result       = $snippets->update_snippet( (int) $_POST['snippet_id'], $data );
+			$redirect_arg = is_wp_error( $result ) ? 'error=1' : 'updated=1';
 		} else {
 			// Create new snippet
-			$snippets->create_snippet( $data );
-			$redirect_arg = 'created=1';
+			$result       = $snippets->create_snippet( $data );
+			$redirect_arg = is_wp_error( $result ) ? 'error=1' : 'created=1';
 		}
 
 		wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
@@ -273,8 +279,12 @@ class ACSPM_Admin_Pages {
 		$editing_snippet  = null;
 
 		// Check if editing a snippet
+		$edit_missing = false;
 		if ( isset( $_GET['edit'] ) && (int) $_GET['edit'] > 0 ) {
 			$editing_snippet = $snippets_manager->get_snippet( (int) $_GET['edit'] );
+			// The snippet may have been deleted in another tab/request — don't
+			// silently fall through to a blank "Add New" form.
+			$edit_missing = ( false === $editing_snippet );
 		}
 
 		// Show add new form
@@ -307,6 +317,12 @@ class ACSPM_Admin_Pages {
 			}
 			if ( isset( $_GET['toggled'] ) ) {
 				echo '<div class="notice notice-success is-dismissible" role="alert"><p>' . esc_html__( 'Snippet status updated.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
+			}
+			if ( isset( $_GET['error'] ) ) {
+				echo '<div class="notice notice-error is-dismissible" role="alert"><p>' . esc_html__( 'Something went wrong — the snippet may no longer exist. Please try again.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
+			}
+			if ( $edit_missing ) {
+				echo '<div class="notice notice-warning is-dismissible" role="alert"><p>' . esc_html__( 'That snippet no longer exists — it may have been deleted.', 'awesome-code-snippets-pro-max' ) . '</p></div>';
 			}
 			?>
 
@@ -356,12 +372,12 @@ class ACSPM_Admin_Pages {
 							<label for="snippet_code_type"><?php esc_html_e( 'Code Type', 'awesome-code-snippets-pro-max' ); ?></label>
 						</th>
 						<td>
-							<select name="snippet_code_type" id="snippet_code_type">
+							<select name="snippet_code_type" id="snippet_code_type" aria-describedby="snippet_code_type_desc">
 								<option value="php" <?php selected( $is_edit ? $snippet['code_type'] : '', 'php' ); ?>>PHP</option>
 								<option value="js" <?php selected( $is_edit ? $snippet['code_type'] : '', 'js' ); ?>>JavaScript</option>
 								<option value="css" <?php selected( $is_edit ? $snippet['code_type'] : '', 'css' ); ?>>CSS</option>
 							</select>
-							<p class="description">
+							<p class="description" id="snippet_code_type_desc">
 								<?php esc_html_e( 'PHP code should NOT start with <?php tag. You CAN use ?> and <?php inside callbacks to output HTML.', 'awesome-code-snippets-pro-max' ); ?>
 							</p>
 						</td>
@@ -381,13 +397,13 @@ class ACSPM_Admin_Pages {
 							<label for="snippet_location"><?php esc_html_e( 'Location', 'awesome-code-snippets-pro-max' ); ?></label>
 						</th>
 						<td>
-							<select name="snippet_location" id="snippet_location">
+							<select name="snippet_location" id="snippet_location" aria-describedby="snippet_location_desc">
 								<option value="wp_head" <?php selected( $is_edit ? $snippet['location'] : '', 'wp_head' ); ?>><?php esc_html_e( 'Frontend Header (wp_head)', 'awesome-code-snippets-pro-max' ); ?></option>
 								<option value="wp_footer" <?php selected( $is_edit ? $snippet['location'] : '', 'wp_footer' ); ?>><?php esc_html_e( 'Frontend Footer (wp_footer)', 'awesome-code-snippets-pro-max' ); ?></option>
 								<option value="everywhere" <?php selected( $is_edit ? $snippet['location'] : '', 'everywhere' ); ?>><?php esc_html_e( 'Everywhere (frontend + admin)', 'awesome-code-snippets-pro-max' ); ?></option>
 								<option value="custom" <?php selected( $is_edit ? $snippet['location'] : '', 'custom' ); ?>><?php esc_html_e( 'Custom Hook', 'awesome-code-snippets-pro-max' ); ?></option>
 							</select>
-							<p class="description">
+							<p class="description" id="snippet_location_desc">
 								<?php esc_html_e( 'PHP runs on init. JS outputs to footer. CSS outputs to head.', 'awesome-code-snippets-pro-max' ); ?>
 							</p>
 						</td>
@@ -400,7 +416,7 @@ class ACSPM_Admin_Pages {
 						<td>
 							<input type="text" name="snippet_custom_hook" id="snippet_custom_hook" class="regular-text"
 								value="<?php echo $is_edit ? esc_attr( $snippet['custom_hook'] ) : ''; ?>"
-								placeholder="e.g., init, wp_loaded, woocommerce_before_cart">
+								placeholder="e.g., wp_loaded, template_redirect, woocommerce_before_cart">
 						</td>
 					</tr>
 
@@ -410,8 +426,8 @@ class ACSPM_Admin_Pages {
 						</th>
 						<td>
 							<input type="number" name="snippet_priority" id="snippet_priority" class="small-text"
-								value="<?php echo $is_edit ? esc_attr( $snippet['priority'] ) : '10'; ?>" min="1" max="999">
-							<p class="description">
+								value="<?php echo $is_edit ? esc_attr( $snippet['priority'] ) : '10'; ?>" min="1" max="999" aria-describedby="snippet_priority_desc">
+							<p class="description" id="snippet_priority_desc">
 								<?php esc_html_e( 'Lower numbers run earlier. Default is 10.', 'awesome-code-snippets-pro-max' ); ?>
 							</p>
 						</td>
@@ -512,8 +528,8 @@ class ACSPM_Admin_Pages {
 								<a href="<?php echo esc_url( $toggle_url ); ?>" class="acspm-status-toggle"
 									role="button"
 									aria-label="<?php echo $snippet['active']
-										? esc_attr( sprintf( __( 'Deactivate snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) )
-										: esc_attr( sprintf( __( 'Activate snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) ); ?>">
+										? esc_attr( sprintf( __( 'Active. Deactivate snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) )
+										: esc_attr( sprintf( __( 'Inactive. Activate snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) ); ?>">
 									<?php if ( $snippet['active'] ) : ?>
 										<span class="acspm-status-active"><?php esc_html_e( 'Active', 'awesome-code-snippets-pro-max' ); ?></span>
 									<?php else : ?>

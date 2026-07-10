@@ -17,7 +17,44 @@
 
 		// Show/hide custom hook field
 		initCustomHookToggle();
+
+		// Space-key activation for the role="button" status toggle
+		initStatusToggleKeyboard();
+
+		// Prevent duplicate submits (double-click / slow connection)
+		initSubmitLock();
 	});
+
+	/**
+	 * A link with role="button" is announced as a button, so screen reader and
+	 * keyboard users expect Space to activate it. Native <a> only fires on Enter,
+	 * so wire Space to follow the link.
+	 */
+	function initStatusToggleKeyboard() {
+		$(document).on('keydown', '.acspm-status-toggle', function(e) {
+			if (e.key === ' ' || e.key === 'Spacebar' || e.which === 32) {
+				e.preventDefault();
+				window.location = this.href;
+			}
+		});
+	}
+
+	/**
+	 * Disable the submit button once a snippet/header-footer form is submitted so
+	 * a double-click can't create duplicate snippets or double-save.
+	 */
+	function initSubmitLock() {
+		$('form').on('submit', function() {
+			var $submit = $(this).find('input[type="submit"], button[type="submit"]');
+			if (!$submit.length) {
+				return;
+			}
+			// Let the value still post, then lock it on the next tick.
+			window.setTimeout(function() {
+				$submit.prop('disabled', true).attr('aria-disabled', 'true');
+			}, 0);
+		});
+	}
 
 	/**
 	 * Initialize the snippet code editor with mode switching

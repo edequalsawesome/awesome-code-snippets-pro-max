@@ -44,6 +44,13 @@ class ACSPM_Snippets {
 	private $active_snippets_cache = null;
 
 	/**
+	 * In-memory active snippets grouped by location within a single request
+	 *
+	 * @var array|null
+	 */
+	private $grouped_snippets_cache = null;
+
+	/**
 	 * Get singleton instance
 	 *
 	 * @return ACSPM_Snippets
@@ -72,6 +79,15 @@ class ACSPM_Snippets {
 		// Custom hooks and "everywhere" PHP
 		add_action( 'init', array( $this, 'execute_custom_hook_snippets' ), 20 );
 		add_action( 'init', array( $this, 'execute_everywhere_snippets' ), 20 );
+
+		// Invalidate cache when snippets are mutated outside our own CRUD
+		// (WP-CLI, imports, direct wp_insert_post). Otherwise a snippet
+		// disabled/deleted through those paths keeps executing from the
+		// cached transient for up to an hour.
+		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'clear_cache' ) );
+		add_action( 'before_delete_post', array( $this, 'clear_cache_on_snippet_change' ) );
+		add_action( 'trashed_post', array( $this, 'clear_cache_on_snippet_change' ) );
+		add_action( 'untrashed_post', array( $this, 'clear_cache_on_snippet_change' ) );
 	}
 
 	/**
@@ -178,8 +194,23 @@ class ACSPM_Snippets {
 	 */
 	public function clear_cache() {
 		delete_transient( self::CACHE_KEY );
-		$this->active_snippets_cache = null;
+		$this->active_snippets_cache  = null;
+		$this->grouped_snippets_cache = null;
 		$this->clean_php_cache();
+	}
+
+	/**
+	 * Clear the cache when a snippet post is deleted, trashed, or untrashed.
+	 *
+	 * Hooked to generic post lifecycle actions (which fire for all post types),
+	 * so it must confirm the affected post is one of ours before clearing.
+	 *
+	 * @param int $post_id Affected post ID.
+	 */
+	public function clear_cache_on_snippet_change( $post_id ) {
+		if ( self::POST_TYPE === get_post_type( $post_id ) ) {
+			$this->clear_cache();
+		}
 	}
 
 	/**
@@ -257,6 +288,14 @@ class ACSPM_Snippets {
 	 * @return int|WP_Error Snippet ID on success, WP_Error on failure.
 	 */
 	public function update_snippet( $snippet_id, $data ) {
+		// Refuse to mutate anything that isn't one of our snippets — mirrors the
+		// guard in delete_snippet()/toggle_snippet() so a substituted post ID
+		// can't have snippet meta stapled onto an arbitrary post.
+		$existing = get_post( $snippet_id );
+		if ( ! $existing || self::POST_TYPE !== $existing->post_type ) {
+			return new WP_Error( 'acspm_invalid_snippet', __( 'Snippet not found.', 'awesome-code-snippets-pro-max' ) );
+		}
+
 		$priority  = isset( $data['priority'] ) ? max( 1, min( 999, (int) $data['priority'] ) ) : 10;
 		$post_data = array(
 			'ID'          => $snippet_id,
@@ -372,12 +411,25 @@ class ACSPM_Snippets {
 	 * @return array Active snippets for the location.
 	 */
 	private function get_active_snippets_for_location( $location ) {
-		return array_filter(
-			$this->get_all_active_snippets(),
-			function ( $snippet ) use ( $location ) {
-				return $snippet['location'] === $location;
+		if ( null === $this->grouped_snippets_cache ) {
+			$grouped = array(
+				'wp_head'    => array(),
+				'wp_footer'  => array(),
+				'everywhere' => array(),
+				'custom'     => array(),
+			);
+			foreach ( $this->get_all_active_snippets() as $snippet ) {
+				$loc = $snippet['location'];
+				if ( isset( $grouped[ $loc ] ) ) {
+					$grouped[ $loc ][] = $snippet;
+				}
 			}
-		);
+			$this->grouped_snippets_cache = $grouped;
+		}
+
+		return isset( $this->grouped_snippets_cache[ $location ] )
+			? $this->grouped_snippets_cache[ $location ]
+			: array();
 	}
 
 	/**
@@ -527,8 +579,9 @@ class ACSPM_Snippets {
 	 * @param array $snippet Snippet data.
 	 */
 	private function execute_php_snippet( $snippet ) {
-		// Strip leading <?php tag if user included one (common mistake)
-		$snippet_code = preg_replace( '/^\s*<\?php\b/', '', $snippet['code'] );
+		// Strip leading <?php tag if user included one (common mistake).
+		// Case-insensitive so pasted <?PHP / <?Php is also caught.
+		$snippet_code = preg_replace( '/^\s*<\?php\b/i', '', $snippet['code'] );
 
 		if ( '' === trim( $snippet_code ) ) {
 			return;
@@ -545,7 +598,11 @@ class ACSPM_Snippets {
 
 		if ( ! file_exists( $cache_file ) ) {
 			$code = "<?php\nif ( ! defined( 'ABSPATH' ) ) { exit; }\n" . $snippet_code;
-			$tmp_file = $cache_file . '.tmp';
+			// Unique temp name per writer. A fixed ".tmp" name is shared by every
+			// concurrent request writing the same snippet, so two writers would
+			// truncate/rename the same inode and defeat the atomic-rename guarantee
+			// below (torn reads, spurious "could not rename" errors).
+			$tmp_file = $cache_file . '.' . getmypid() . '-' . uniqid( '', true ) . '.tmp';
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			$written = file_put_contents( $tmp_file, $code, LOCK_EX );
@@ -566,6 +623,7 @@ class ACSPM_Snippets {
 			}
 
 			// Clean up old cache files for this snippet ID (exclude current)
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_glob
 			$old_files = glob( $cache_dir . '/snippet-' . $snippet['id'] . '-*.php' );
 			if ( $old_files ) {
 				foreach ( $old_files as $old_file ) {
@@ -622,6 +680,7 @@ class ACSPM_Snippets {
 		$cache_dir = $this->get_php_cache_dir();
 
 		if ( is_dir( $cache_dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_glob
 			$files = glob( $cache_dir . '/snippet-*.php' );
 			if ( $files ) {
 				foreach ( $files as $file ) {

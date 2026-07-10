@@ -24,10 +24,15 @@ do {
 		)
 	);
 
+	$deleted = 0;
 	foreach ( $snippets as $snippet_id ) {
-		wp_delete_post( $snippet_id, true );
+		if ( wp_delete_post( $snippet_id, true ) ) {
+			$deleted++;
+		}
 	}
-} while ( count( $snippets ) === $batch_size );
+	// Stop if a full batch made no progress (e.g. another plugin is
+	// short-circuiting deletion) so uninstall can't spin until timeout.
+} while ( count( $snippets ) === $batch_size && $deleted > 0 );
 
 // Delete options.
 delete_option( 'acspm_header_code' );
@@ -57,7 +62,9 @@ $cache_dirs[] = $upload_dir['basedir'] . '/acspm-cache';
 foreach ( $cache_dirs as $cache_dir ) {
 	if ( is_dir( $cache_dir ) ) {
 		$files = array_merge(
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_glob
 			glob( $cache_dir . '/*' ) ?: array(),
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_glob
 			glob( $cache_dir . '/.*' ) ?: array()
 		);
 		if ( $files ) {
@@ -70,6 +77,7 @@ foreach ( $cache_dirs as $cache_dir ) {
 				}
 			}
 		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
 		rmdir( $cache_dir );
 	}
 }
