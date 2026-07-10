@@ -4,7 +4,7 @@ Tags: code snippets, header footer, custom code, analytics, scripts
 Requires at least: 5.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 2026.04.04
+Stable tag: 2026.07.001
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -68,9 +68,9 @@ Yes. Go to Tools > Header & Footer, paste your GA script in the header box, clic
 
 Yes. Go to Tools > Code Snippets, create a new snippet, set the type to PHP, choose "Custom Hook" as the location, enter the hook name (like `woocommerce_before_cart`), and save.
 
-= Is the PHP code executed with eval()? =
+= How is the PHP code executed? =
 
-Yes, but only for active snippets and only on the frontend. Be careful with what you add - the same caution applies as editing your theme's functions.php file.
+Active PHP snippets are written to a cached, content-addressed file in `wp-content/cache/` (protected against direct web access) and run via `include` - not `eval()`. "wp_head" and "wp_footer" PHP runs on the frontend only; "Everywhere" and "Custom Hook" PHP runs wherever the chosen hook fires, which can include wp-admin. Be careful with what you add - the same caution applies as editing your theme's functions.php file.
 
 = Why is it called "Pro Max"? =
 
@@ -99,6 +99,17 @@ Once you've fixed the issue, remove the line from wp-config.php.
 3. Header & Footer settings page
 
 == Changelog ==
+
+= 2026.07.001 =
+* Fix: PHP snippet cache now uses a unique temp filename per writer, fixing a race where concurrent requests could tear a half-written cache file or skip execution after a save
+* Fix: Snippet updates now verify the target is actually a snippet before writing, and create/update/toggle/delete report a real error instead of a false success when the operation fails
+* Fix: Cache is now invalidated when snippets are changed outside the plugin's own screens (WP-CLI, imports, direct writes), so disabled code stops running promptly
+* Fix: Leading `<?php` tag stripping is now case-insensitive
+* Fix: Safe Mode notice now gives correct exit instructions for the wp-config constant path and links to the right Tools screen
+* Fix: Fresh installs no longer run the upgrade migrations unnecessarily; the autoload migration now uses a value understood by all supported cores and clears the stale options cache
+* Accessibility: Status toggle accessible name now includes its visible label, responds to the Space key, and has a larger hit target; form field descriptions are associated via `aria-describedby`
+* Accessibility/UX: Editing a snippet deleted in another tab now shows a notice instead of a blank form; duplicate form submits are blocked
+* Docs: Corrected the PHP-execution FAQ (cached `include`, not `eval()`; "Everywhere"/custom hooks can run in wp-admin)
 
 = 2026.04.04 =
 * Security: All code paths (snippets, header/footer) now require `unfiltered_html` capability, closing a multisite privilege escalation gap

@@ -28,6 +28,11 @@
 
 .acspm-status-toggle {
 	text-decoration: none;
+	/* Standalone control: give it a >=24x24px hit target (WCAG 2.5.8). */
+	display: inline-block;
+	min-height: 24px;
+	padding: 4px 6px;
+	line-height: 16px;
 }
 
 .acspm-status-toggle:hover .acspm-status-active,
