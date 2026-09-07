@@ -66,7 +66,7 @@ While logged in as an admin, add `?acspm-safe-mode=1` to any URL on your site:
 https://yoursite.com/wp-admin/?acspm-safe-mode=1
 ```
 
-This temporarily disables all snippets and header/footer code so you can access the admin and fix or deactivate the problematic snippet.
+This temporarily disables all snippets and header/footer code so you can access the admin and fix or deactivate the problematic snippet. Once you are in wp-admin, plugin links and redirects retain the flag; the two Tools sidebar links require JavaScript during recovery.
 
 ### Option 2: wp-config.php Constant
 

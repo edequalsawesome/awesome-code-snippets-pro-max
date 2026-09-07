@@ -168,7 +168,7 @@ class ACSPM_Admin_Pages {
 				$redirect_arg = 'error=1';
 			}
 
-			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
+			wp_safe_redirect( acspm_admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
 			exit;
 		}
 
@@ -189,7 +189,7 @@ class ACSPM_Admin_Pages {
 			$deleted      = $snippets->delete_snippet( $snippet_id );
 			$redirect_arg = $deleted ? 'deleted=1' : 'error=1';
 
-			wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
+			wp_safe_redirect( acspm_admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
 			exit;
 		}
 	}
@@ -228,7 +228,7 @@ class ACSPM_Admin_Pages {
 			$redirect_arg = is_wp_error( $result ) ? 'error=1' : 'created=1';
 		}
 
-		wp_safe_redirect( admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
+		wp_safe_redirect( acspm_admin_url( 'tools.php?page=acspm-snippets&' . $redirect_arg ) );
 		exit;
 	}
 
@@ -244,7 +244,7 @@ class ACSPM_Admin_Pages {
 		$header_footer->save_header_code( $header_code );
 		$header_footer->save_footer_code( $footer_code );
 
-		wp_safe_redirect( admin_url( 'tools.php?page=acspm-header-footer&saved=1' ) );
+		wp_safe_redirect( acspm_admin_url( 'tools.php?page=acspm-header-footer&saved=1' ) );
 		exit;
 	}
 
@@ -297,7 +297,7 @@ class ACSPM_Admin_Pages {
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Code Snippets', 'awesome-code-snippets-pro-max' ); ?></h1>
 
 			<?php if ( ! $show_form ) : ?>
-				<a href="<?php echo esc_url( admin_url( 'tools.php?page=acspm-snippets&add_new=1' ) ); ?>" class="page-title-action">
+				<a href="<?php echo esc_url( acspm_admin_url( 'tools.php?page=acspm-snippets&add_new=1' ) ); ?>" class="page-title-action">
 					<?php esc_html_e( 'Add New', 'awesome-code-snippets-pro-max' ); ?>
 				</a>
 			<?php endif; ?>
@@ -449,7 +449,7 @@ class ACSPM_Admin_Pages {
 
 				<p class="submit">
 					<input type="submit" class="button button-primary" value="<?php echo $is_edit ? esc_attr__( 'Update Snippet', 'awesome-code-snippets-pro-max' ) : esc_attr__( 'Save Snippet', 'awesome-code-snippets-pro-max' ); ?>">
-					<a href="<?php echo esc_url( admin_url( 'tools.php?page=acspm-snippets' ) ); ?>" class="button"><?php esc_html_e( 'Cancel', 'awesome-code-snippets-pro-max' ); ?></a>
+					<a href="<?php echo esc_url( acspm_admin_url( 'tools.php?page=acspm-snippets' ) ); ?>" class="button"><?php esc_html_e( 'Cancel', 'awesome-code-snippets-pro-max' ); ?></a>
 				</p>
 			</form>
 		</div>
@@ -486,7 +486,7 @@ class ACSPM_Admin_Pages {
 						<tr>
 							<td class="column-name">
 								<strong>
-									<a href="<?php echo esc_url( admin_url( 'tools.php?page=acspm-snippets&edit=' . $snippet['id'] ) ); ?>">
+									<a href="<?php echo esc_url( acspm_admin_url( 'tools.php?page=acspm-snippets&edit=' . $snippet['id'] ) ); ?>">
 										<?php echo esc_html( $snippet['name'] ); ?>
 									</a>
 								</strong>
@@ -521,7 +521,7 @@ class ACSPM_Admin_Pages {
 							<td class="column-status">
 								<?php
 								$toggle_url = wp_nonce_url(
-									admin_url( 'tools.php?page=acspm-snippets&action=toggle&snippet_id=' . $snippet['id'] ),
+									acspm_admin_url( 'tools.php?page=acspm-snippets&action=toggle&snippet_id=' . $snippet['id'] ),
 									'acspm_toggle_' . $snippet['id']
 								);
 								?>
@@ -538,13 +538,13 @@ class ACSPM_Admin_Pages {
 								</a>
 							</td>
 							<td class="column-actions">
-								<a href="<?php echo esc_url( admin_url( 'tools.php?page=acspm-snippets&edit=' . $snippet['id'] ) ); ?>" class="button button-small"
+								<a href="<?php echo esc_url( acspm_admin_url( 'tools.php?page=acspm-snippets&edit=' . $snippet['id'] ) ); ?>" class="button button-small"
 									aria-label="<?php echo esc_attr( sprintf( __( 'Edit snippet: %s', 'awesome-code-snippets-pro-max' ), $snippet['name'] ) ); ?>">
 									<?php esc_html_e( 'Edit', 'awesome-code-snippets-pro-max' ); ?>
 								</a>
 								<?php
 								$delete_url = wp_nonce_url(
-									admin_url( 'tools.php?page=acspm-snippets&action=delete&snippet_id=' . $snippet['id'] ),
+									acspm_admin_url( 'tools.php?page=acspm-snippets&action=delete&snippet_id=' . $snippet['id'] ),
 									'acspm_delete_' . $snippet['id']
 								);
 								?>
