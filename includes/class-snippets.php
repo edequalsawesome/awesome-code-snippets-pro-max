@@ -263,7 +263,7 @@ class ACSPM_Snippets {
 		$priority  = isset( $data['priority'] ) ? max( 1, min( 999, (int) $data['priority'] ) ) : 10;
 		$post_data = array(
 			'post_type'   => self::POST_TYPE,
-			'post_title'  => sanitize_text_field( $data['name'] ),
+			'post_title'  => wp_slash( sanitize_text_field( $data['name'] ) ),
 			'post_status' => ! empty( $data['active'] ) ? 'publish' : 'draft',
 			'menu_order'  => $priority,
 		);
@@ -299,7 +299,7 @@ class ACSPM_Snippets {
 		$priority  = isset( $data['priority'] ) ? max( 1, min( 999, (int) $data['priority'] ) ) : 10;
 		$post_data = array(
 			'ID'          => $snippet_id,
-			'post_title'  => sanitize_text_field( $data['name'] ),
+			'post_title'  => wp_slash( sanitize_text_field( $data['name'] ) ),
 			'post_status' => ! empty( $data['active'] ) ? 'publish' : 'draft',
 			'menu_order'  => $priority,
 		);
@@ -324,7 +324,7 @@ class ACSPM_Snippets {
 	 */
 	private function update_snippet_meta( $snippet_id, $data ) {
 		if ( isset( $data['code'] ) ) {
-			update_post_meta( $snippet_id, '_acspm_code', $data['code'] );
+			update_post_meta( $snippet_id, '_acspm_code', wp_slash( $data['code'] ) );
 		}
 
 		if ( isset( $data['code_type'] ) ) {

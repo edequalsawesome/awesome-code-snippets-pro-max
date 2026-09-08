@@ -53,6 +53,58 @@ function acspm_is_safe_mode() {
 	return false;
 }
 
+/**
+ * Whether this admin request activated URL safe mode.
+ *
+ * @return bool True for an authorized URL safe-mode request.
+ */
+function acspm_is_url_safe_mode() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	return is_admin() && current_user_can( 'manage_options' ) && isset( $_GET['acspm-safe-mode'] ) && is_string( $_GET['acspm-safe-mode'] ) && '1' === $_GET['acspm-safe-mode'];
+}
+
+/**
+ * Build an admin URL that retains an authorized URL safe-mode flag.
+ *
+ * @param string $path   Path relative to wp-admin.
+ * @param string $scheme URL scheme.
+ * @return string Admin URL.
+ */
+function acspm_admin_url( $path = '', $scheme = 'admin' ) {
+	$url = admin_url( $path, $scheme );
+
+	return acspm_is_url_safe_mode() ? add_query_arg( 'acspm-safe-mode', '1', $url ) : $url;
+}
+
+/**
+ * Retain URL safe mode on this plugin's two Tools sidebar links.
+ */
+function acspm_preserve_safe_mode_sidebar_links() {
+	if ( ! acspm_is_url_safe_mode() ) {
+		return;
+	}
+	$admin_paths = array(
+		wp_parse_url( admin_url( 'tools.php' ), PHP_URL_PATH ),
+		wp_parse_url( admin_url( 'admin.php' ), PHP_URL_PATH ),
+	);
+	?>
+	<script>
+		document.querySelectorAll('#menu-tools a').forEach(function (link) {
+			var url;
+			try {
+				url = new URL(link.href, window.location.origin);
+			} catch (error) {
+				return;
+			}
+			if (url.origin === window.location.origin && <?php echo wp_json_encode( $admin_paths, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ); ?>.indexOf(url.pathname) !== -1 && ['acspm-snippets', 'acspm-header-footer'].indexOf(url.searchParams.get('page')) !== -1) {
+				url.searchParams.set('acspm-safe-mode', '1');
+				link.href = url.href;
+			}
+		});
+	</script>
+	<?php
+}
+
 // Load plugin classes
 require_once ACSPM_PLUGIN_DIR . 'includes/class-snippets.php';
 require_once ACSPM_PLUGIN_DIR . 'includes/class-header-footer.php';
@@ -71,6 +123,7 @@ function acspm_init() {
 	// Initialize admin pages (only in admin)
 	if ( is_admin() ) {
 		ACSPM_Admin_Pages::get_instance();
+		add_action( 'admin_footer', 'acspm_preserve_safe_mode_sidebar_links' );
 	}
 
 	// Show admin notice when safe mode is active (deferred to admin_init
@@ -92,7 +145,7 @@ function acspm_safe_mode_notice() {
 	// from the wp-config constant — that would give a dead "exit" link that
 	// reappears on every load.
 	$via_constant = defined( 'ACSPM_SAFE_MODE' ) && ACSPM_SAFE_MODE;
-	$review_url   = admin_url( 'tools.php?page=acspm-snippets' );
+	$review_url   = acspm_admin_url( 'tools.php?page=acspm-snippets' );
 	?>
 	<div class="notice notice-warning" role="alert">
 		<p>
