@@ -67,7 +67,9 @@
 
 		var editorSettings = wp.codeEditor.defaultSettings ? _.clone(wp.codeEditor.defaultSettings) : {};
 		editorSettings.codemirror = _.extend({}, editorSettings.codemirror, {
-			mode: 'php',
+			// Snippets omit the opening tag, so start CodeMirror inside PHP.
+			mode: { name: 'php', startOpen: true },
+			lint: false,
 			lineNumbers: true,
 			lineWrapping: true,
 			indentUnit: 4,
@@ -89,9 +91,10 @@
 			)
 		);
 
-		// Update CodeMirror mode when code type changes
+		// Update the CodeMirror mode and the settings captured by WordPress linting.
 		$('#snippet_code_type').on('change', function() {
-			var mode = 'php';
+			var isPhp = 'php' === $(this).val();
+			var mode = { name: 'php', startOpen: true };
 			switch ($(this).val()) {
 				case 'js':
 					mode = 'javascript';
@@ -99,12 +102,14 @@
 				case 'css':
 					mode = 'css';
 					break;
-				case 'php':
-				default:
-					mode = 'php';
-					break;
 			}
+
+			// Disable the old linter before its mode changes.
+			editor.codemirror.setOption('lint', false);
+			editor.settings.codemirror.mode = mode;
+			editor.settings.codemirror.lint = !isPhp;
 			editor.codemirror.setOption('mode', mode);
+			editor.codemirror.setOption('lint', !isPhp);
 		});
 
 		// Trigger initial mode set
