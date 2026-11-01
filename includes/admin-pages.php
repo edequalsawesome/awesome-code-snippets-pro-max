@@ -90,6 +90,10 @@ class ACSPM_Admin_Pages {
 		$script_deps = array( 'jquery' );
 
 		if ( false !== $settings ) {
+			if ( 'tools_page_acspm-snippets' === $hook ) {
+				// Load the JavaScript editor's WordPress-version-specific lint dependencies.
+				wp_enqueue_code_editor( array( 'type' => 'text/javascript' ) );
+			}
 			wp_enqueue_script( 'wp-theme-plugin-editor' );
 			wp_enqueue_style( 'wp-codemirror' );
 			$script_deps[] = 'wp-theme-plugin-editor';
