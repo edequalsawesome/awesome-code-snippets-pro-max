@@ -114,6 +114,19 @@ class ACSPM_Snippets {
 			'show_in_menu'        => false,
 			'query_var'           => false,
 			'capability_type'     => 'post',
+			// Require the same management capability as our admin screens.
+			'map_meta_cap'        => false,
+			'capabilities'        => array_fill_keys(
+				array(
+					'edit_post', 'read_post', 'delete_post', 'edit_posts',
+					'edit_page', 'read_page', 'delete_page',
+					'edit_others_posts', 'publish_posts', 'read_private_posts',
+					'delete_posts', 'delete_private_posts', 'delete_published_posts',
+					'delete_others_posts', 'edit_private_posts', 'edit_published_posts',
+					'create_posts', 'read',
+				),
+				'manage_options'
+			),
 			'has_archive'         => false,
 			'hierarchical'        => false,
 			'supports'            => array( 'title' ),
